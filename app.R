@@ -4,6 +4,8 @@ library(shiny)
 library(tidyverse)
 library(leaflet)
 
+#covid_df <- read.csv('data/covid_timeseries.csv')
+
 parent_url = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/'
 
 # urls for csv files
@@ -22,31 +24,23 @@ wide_to_long <- function(wide_df){
   return(long_df)
 }
 
-confirmed_df <- read.csv(confirmed_url) %>% wide_to_long()
-
-#covid_df <- read.csv('https://coronadatascraper.com/#timeseries.csv')
-
-df <- confirmed_df %>% 
-  gather(Date, Confirmed.Cases, starts_with('x')) %>% 
-  mutate(Date = Date %>% 
-           str_replace('X', '0') %>%
-           str_replace_all('\\.', '-') %>% 
-           as.Date(format='%m-%d-%y'))
-
-# Create a color palette with handmade bins.
-mybins <- seq(0, max(df$Confirmed.Cases), by=1000)
-mypalette <- colorBin(palette="YlOrBr", domain=quakes$mag, na.color="transparent", bins=mybins)
+confirmed_df <- read.csv(confirmed_url) %>% 
+  wide_to_long() %>% 
+  mutate(Confirmed.Sqrt = sqrt(Confirmed.Cases))
 
 ui <- fluidPage(
   titlePanel('The Impact of COVID19 on the Economy'),
   sidebarLayout(
     sidebarPanel(
+      textOutput("totals"),
       sliderInput(
-        "dateID", "Date:",
+        "date", 
+        label = ("Select Date:"),
         min = as.Date("2020-01-22","%Y-%m-%d"),
         max = as.Date("2020-03-30","%Y-%m-%d"),
-        value=as.Date("2020-03-30"),
-        timeFormat="%Y-%m-%d")
+        value = as.Date("2020-03-30"),
+        timeFormat="%d %b",
+        animate=animationOptions(interval=500, loop=F))
     ),
     mainPanel(
       leafletOutput("bubblemap")
@@ -54,33 +48,51 @@ ui <- fluidPage(
   )
 )
 
-# df <- confirmed_df %>% 
-#   filter(Date=="2020-03-29")
-# 
-# leaflet(df) %>% 
-#   addTiles() %>% 
-#   setView(lng=10, lat=30, zoom=1) %>% 
-#   addProviderTiles("CartoDB.Positron") %>% 
-#   addCircles(
-#     ~Long, ~Lat,
-#     radius = ~sqrt(Confirmed.Cases) * 2000,
-#     weight=1,
-#     color = 'red',
-#     fillColor = 'red'
-#   )
-
 server <- function(input, output) {
-  df <- confirmed_df %>% 
-    filter(Date=="2020-03-29")
+  df <- reactive({
+    confirmed_df %>% 
+    filter(Date==input$date) %>% 
+    mutate(Total.Confirmed=sum(Confirmed.Cases))
+  })
+  
+  output$totals <- renderText({ 
+    str_c('Total Confirmed:', format(as.integer(sum(df()$Confirmed.Cases)), big.mark=','))
+  })
+  
+  # zoom <- reactive({
+  #   ifelse(is.null(input$bubblemap_zoom), 2, input$bubblemap_zoom)
+  # })
+  # 
+  # center <- reactive({
+  #   
+  #   if(is.null(input$bubblemap_center)){
+  #     return(c(179.462, -20.64275))
+  #   } else {
+  #     return(input$bubblemap_center)
+  #   }
+  # })
   
   output$bubblemap <- renderLeaflet({
-    leaflet(df) %>% 
+    leaflet(confirmed_df) %>% 
       addTiles() %>% 
-      setView(lng=10, lat=30, zoom=1) %>% 
-      addProviderTiles("CartoDB.Positron") %>% 
+      #setView(lng=10, lat=30, zoom=2) %>% 
+      addProviderTiles("CartoDB.Positron") #%>% 
+      # addCircles(
+      #   ~Long, ~Lat,
+      #   radius = ~Confirmed.Sqrt * 2500,
+      #   weight=1,
+      #   color = 'red',
+      #   fillColor = 'red'
+      # )
+  })
+  
+  observeEvent(input$date, {
+    leafletProxy('bubblemap') %>% 
+      clearShapes() %>% 
       addCircles(
+        data=df(),
         ~Long, ~Lat,
-        radius = ~sqrt(Confirmed.Cases) * 2000,
+        radius = ~Confirmed.Sqrt * 2500,
         weight=1,
         color = 'red',
         fillColor = 'red'
