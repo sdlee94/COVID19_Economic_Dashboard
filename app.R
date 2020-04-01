@@ -58,25 +58,53 @@ recovered_df <- read.csv(recovered_url) %>%
 
 # ----
 
+# ui <- fluidPage(
+#   titlePanel('The Impact of COVID19 on the Economy'),
+#   sidebarLayout(
+#     sidebarPanel(
+#       h2(textOutput("show_date"), align='center'),
+#       span(h3(textOutput("n_confirmed")), style='color:orange'),
+#       span(h3(textOutput("n_deaths")), style='color:red'),
+#       span(h3(textOutput("n_recovered")), style='color:blue'),
+#       sliderInput(
+#         "date", 
+#         label = ("Select Date:"),
+#         min = min(confirmed_df$Date),
+#         max = max(confirmed_df$Date),
+#         value = max(confirmed_df$Date),
+#         animate = animationOptions(interval=600, loop=F),
+#         timeFormat = "%d %b"
+#       )
+#     ),
+#     mainPanel(
+#       leafletOutput("bubblemap")
+#     )
+#   )
+# )
+
 ui <- fluidPage(
   titlePanel('The Impact of COVID19 on the Economy'),
-  sidebarLayout(
-    sidebarPanel(
-      h2(textOutput("show_date"), align='center'),
+  fluidRow(
+    column(
+      2,h2(textOutput("show_date"), align='center'),
       span(h3(textOutput("n_confirmed")), style='color:orange'),
       span(h3(textOutput("n_deaths")), style='color:red'),
       span(h3(textOutput("n_recovered")), style='color:blue'),
       sliderInput(
-        "date", 
+        "date",
         label = ("Select Date:"),
-        min = as.Date("2020-01-22","%Y-%m-%d"),
-        max = as.Date("2020-03-30","%Y-%m-%d"),
-        value = as.Date("2020-03-30"),
+        min = min(confirmed_df$Date),
+        max = max(confirmed_df$Date),
+        value = max(confirmed_df$Date),
         animate = animationOptions(interval=600, loop=F),
-        timeFormat = "%d %b")
+        timeFormat = "%d %b"
+      )
     ),
-    mainPanel(
-      leafletOutput("bubblemap")
+    column(
+      6,leafletOutput("bubblemap")
+    ),
+    column(
+      4,h2('Tony')
     )
   )
 )
@@ -107,12 +135,12 @@ server <- function(input, output) {
   })
   
   output$n_deaths <- renderText({ 
-    str_c(format(as.integer(sum(r_deaths()$Deaths), na.rm=T), 
+    str_c(format(as.integer(sum(r_deaths()$Deaths, na.rm=T)), 
                  big.mark=','), ' Deaths')
   })
   
   output$n_recovered <- renderText({ 
-    str_c(format(as.integer(sum(r_recovered()$Recovered), na.rm=T), 
+    str_c(format(as.integer(sum(r_recovered()$Recovered, na.rm=T)), 
                  big.mark=','), ' Recovered')
   })
   
@@ -132,7 +160,7 @@ server <- function(input, output) {
       #             fillColor = ~mypal(Value),
       #             fillOpacity = 1) %>% 
       addCircles(
-        data=r_confirmed(),
+        data = r_confirmed(),
         ~Long, ~Lat,
         radius = ~Confirmed.Sqrt * 2500,
         weight = 1,
@@ -145,19 +173,19 @@ server <- function(input, output) {
           r_confirmed()$Confirmed) %>% lapply(htmltools::HTML)
       ) %>%
       addCircles(
-        data=r_recovered(),
+        data = r_recovered(),
         ~Long, ~Lat,
         radius = ~Recovered.Sqrt * 2500,
-        weight=1,
+        weight = 1,
         color = 'blue',
         fillColor = 'blue',
         fillOpacity = 0.3
       ) %>% 
       addCircles(
-        data=r_deaths(),
+        data = r_deaths(),
         ~Long, ~Lat,
         radius = ~Deaths.Sqrt * 2500,
-        weight=1,
+        weight = 1,
         color = 'red',
         fillColor = 'red',
         fillOpacity = 0.5
