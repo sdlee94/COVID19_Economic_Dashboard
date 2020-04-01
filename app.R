@@ -153,16 +153,16 @@ server <- function(input, output) {
   
   observeEvent(input$date, {
     leafletProxy('bubblemap') %>% 
-      clearShapes() %>% 
+      clearMarkers() %>% 
       # addPolygons(data = corp_debt_spdf, 
       #             weight = 1,
       #             color = 'black',
       #             fillColor = ~mypal(Value),
       #             fillOpacity = 1) %>% 
-      addCircles(
+      addCircleMarkers(
         data = r_confirmed(),
         ~Long, ~Lat,
-        radius = ~Confirmed.Sqrt * 2500,
+        radius = ~Confirmed.Sqrt / 10,
         weight = 1,
         color = 'orange',
         fillColor = 'orange',
@@ -172,19 +172,19 @@ server <- function(input, output) {
           r_confirmed()$Country.Region, 
           r_confirmed()$Confirmed) %>% lapply(htmltools::HTML)
       ) %>%
-      addCircles(
+      addCircleMarkers(
         data = r_recovered(),
         ~Long, ~Lat,
-        radius = ~Recovered.Sqrt * 2500,
+        radius = ~Recovered.Sqrt / 10,
         weight = 1,
         color = 'blue',
         fillColor = 'blue',
         fillOpacity = 0.3
       ) %>% 
-      addCircles(
+      addCircleMarkers(
         data = r_deaths(),
         ~Long, ~Lat,
-        radius = ~Deaths.Sqrt * 2500,
+        radius = ~Deaths.Sqrt / 10,
         weight = 1,
         color = 'red',
         fillColor = 'red',
