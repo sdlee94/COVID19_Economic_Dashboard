@@ -41,6 +41,49 @@ recovered_df <- read.csv(recovered_url) %>%
   rename(Recovered = Cases) %>% 
   mutate(Recovered.Sqrt = sqrt(Recovered))
 
+library(httr)
+library(jsonlite)
+library('data.table')
+library(dplyr)
+library(ggplot2)
+library(anytime)
+
+eco_url = 'http://finmindapi.servebeer.com/api/data'
+
+#Data Download
+payload<-list( 'dataset' = 'USStockPrice',
+               'stock_id' = '^GSPC',
+               'date'='2020-01-22' )
+response = POST(eco_url,body = payload,encode="form")
+gspc_data = response %>% content
+gspc_data = do.call('cbind',gspc_data$data) %>%data.table
+
+payload<-list( 'dataset' = 'USStockPrice',
+               'stock_id' = '^DJI',
+               'date'='2020-01-22' )
+response = POST(eco_url,body = payload,encode="form")
+dji_data = response %>% content
+dji_data = do.call('cbind',dji_data$data) %>%data.table
+
+payload<-list( 'dataset' = 'USStockPrice',
+               'stock_id' = '^IXIC',
+               'date'='2020-01-22' )
+response = POST(eco_url,body = payload,encode="form")
+ixic_data = response %>% content
+ixic_data = do.call('cbind',ixic_data$data) %>%data.table
+
+gspc_data$Close <- as.character(gspc_data$Close)
+gspc_data$date <- anytime::anydate(as.character(gspc_data$date))
+gspc_data$stock_id <- as.character(gspc_data$stock_id)
+
+dji_data$Close <- as.character(dji_data$Close)
+dji_data$date <- anytime::anydate(as.character(dji_data$date))
+dji_data$stock_id <- as.character(dji_data$stock_id)
+
+ixic_data$Close <- as.character(ixic_data$Close)
+ixic_data$date <- anytime::anydate(as.character(ixic_data$date))
+ixic_data$stock_id <- as.character(ixic_data$stock_id)
+
 # COVID_df <- confirmed_df %>% 
 #   left_join(deaths_df %>% select(Lat, Long, Date, Deaths, Deaths.Sqrt), 
 #             by=c('Lat','Long','Date')) %>% 
@@ -104,7 +147,7 @@ ui <- fluidPage(
       6,leafletOutput("bubblemap")
     ),
     column(
-      4,h2('Tony')
+      4,plotOutput('coolplot')
     )
   )
 )
@@ -190,6 +233,14 @@ server <- function(input, output) {
         fillColor = 'red',
         fillOpacity = 0.5
       )
+  })
+  
+  output$coolplot <- renderPlot({
+    ggplot(dji_data, aes(x=date, y=Close, group=1)) +
+      geom_line() + 
+      xlab("") + 
+      geom_line(data = gspc_data) +
+      geom_line(data = ixic_data)
   })
 }
 
