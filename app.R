@@ -62,7 +62,7 @@ ui <- fluidPage(
   titlePanel('The Impact of COVID19 on the Economy'),
   sidebarLayout(
     sidebarPanel(
-      h2(textOutput("date"), align='center'),
+      h2(textOutput("show_date"), align='center'),
       span(h3(textOutput("n_confirmed")), style='color:orange'),
       span(h3(textOutput("n_deaths")), style='color:red'),
       span(h3(textOutput("n_recovered")), style='color:blue'),
@@ -72,8 +72,8 @@ ui <- fluidPage(
         min = as.Date("2020-01-22","%Y-%m-%d"),
         max = as.Date("2020-03-30","%Y-%m-%d"),
         value = as.Date("2020-03-30"),
-        timeFormat="%d %b")
-        #animationOptions(interval=600, loop=F))
+        animate = animationOptions(interval=600, loop=F),
+        timeFormat = "%d %b")
     ),
     mainPanel(
       leafletOutput("bubblemap")
@@ -84,20 +84,20 @@ ui <- fluidPage(
 server <- function(input, output) {
   r_confirmed <- reactive({
     confirmed_df %>% 
-      filter(Date==input$date)
+      filter(Date==input$date & Confirmed>0)
   })
   
   r_deaths <- reactive({
     deaths_df %>% 
-      filter(Date==input$date)
+      filter(Date==input$date & Deaths>0)
   })
   
   r_recovered <- reactive({
     recovered_df %>% 
-      filter(Date==input$date)
+      filter(Date==input$date & Recovered>0)
   })
   
-  output$date <- renderText({ 
+  output$show_date <- renderText({ 
     format(input$date,"%d %B %Y")
   })
   
@@ -135,10 +135,14 @@ server <- function(input, output) {
         data=r_confirmed(),
         ~Long, ~Lat,
         radius = ~Confirmed.Sqrt * 2500,
-        weight=1,
+        weight = 1,
         color = 'orange',
         fillColor = 'orange',
-        fillOpacity = 0.5
+        fillOpacity = 0.4,
+        label = sprintf(
+          '<strong>%s</strong><br/>%d Confirmed<br/>',
+          r_confirmed()$Country.Region, 
+          r_confirmed()$Confirmed) %>% lapply(htmltools::HTML)
       ) %>%
       addCircles(
         data=r_recovered(),
@@ -147,7 +151,7 @@ server <- function(input, output) {
         weight=1,
         color = 'blue',
         fillColor = 'blue',
-        fillOpacity = 0.4
+        fillOpacity = 0.3
       ) %>% 
       addCircles(
         data=r_deaths(),
@@ -156,7 +160,7 @@ server <- function(input, output) {
         weight=1,
         color = 'red',
         fillColor = 'red',
-        fillOpacity = 0.7
+        fillOpacity = 0.5
       )
   })
 }
