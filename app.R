@@ -1,13 +1,15 @@
-# to install package run: install.packages('shiny')
-# install.packages('leaflet')
-library(shiny)
+# load packages
 library(tidyverse)
+library(data.table)
+library(shiny)
+library(shinyWidgets)
 library(leaflet)
 library(rworldmap)
+library(httr)
+library(jsonlite)
+library(anytime)
 
-#covid_df <- read.csv('data/covid_timeseries.csv')
-
-# DATA ----
+# COVID DATA ----
 parent_url = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/'
 
 # urls for csv files
@@ -40,37 +42,32 @@ recovered_df <- read.csv(recovered_url) %>%
   wide_to_long() %>% 
   rename(Recovered = Cases) %>% 
   mutate(Recovered.Sqrt = sqrt(Recovered))
+# ----
 
-library(httr)
-library(jsonlite)
-library('data.table')
-library(dplyr)
-library(ggplot2)
-library(anytime)
-
+# STOCKS DATA ----
 eco_url = 'http://finmindapi.servebeer.com/api/data'
 
-#Data Download
-payload<-list( 'dataset' = 'USStockPrice',
-               'stock_id' = '^GSPC',
-               'date'='2020-01-22' )
-response = POST(eco_url,body = payload,encode="form")
+# Data Download
+payload <- list('dataset' = 'USStockPrice',
+                'stock_id' = '^GSPC',
+                'date'='2020-01-22')
+response = POST(eco_url,body = payload, encode = "form")
 gspc_data = response %>% content
-gspc_data = do.call('cbind',gspc_data$data) %>%data.table
+gspc_data = do.call('cbind', gspc_data$data) %>% data.table
 
-payload<-list( 'dataset' = 'USStockPrice',
-               'stock_id' = '^DJI',
-               'date'='2020-01-22' )
-response = POST(eco_url,body = payload,encode="form")
+payload <- list('dataset' = 'USStockPrice',
+                'stock_id' = '^DJI',
+                'date'='2020-01-22' )
+response = POST(eco_url,body = payload, encode = "form")
 dji_data = response %>% content
-dji_data = do.call('cbind',dji_data$data) %>%data.table
+dji_data = do.call('cbind', dji_data$data) %>% data.table
 
-payload<-list( 'dataset' = 'USStockPrice',
-               'stock_id' = '^IXIC',
-               'date'='2020-01-22' )
-response = POST(eco_url,body = payload,encode="form")
+payload <- list('dataset' = 'USStockPrice',
+                'stock_id' = '^IXIC',
+                'date' = '2020-01-22' )
+response = POST(eco_url,body = payload, encode = "form")
 ixic_data = response %>% content
-ixic_data = do.call('cbind',ixic_data$data) %>%data.table
+ixic_data = do.call('cbind', ixic_data$data) %>% data.table
 
 gspc_data$Close <- as.character(gspc_data$Close)
 gspc_data$date <- anytime::anydate(as.character(gspc_data$date))
@@ -83,6 +80,16 @@ dji_data$stock_id <- as.character(dji_data$stock_id)
 ixic_data$Close <- as.character(ixic_data$Close)
 ixic_data$date <- anytime::anydate(as.character(ixic_data$date))
 ixic_data$stock_id <- as.character(ixic_data$stock_id)
+# ----
+
+# Aesthetics ----
+my_theme <- theme(
+  panel.background = element_rect(fill = '#293535'),
+  panel.grid.major = element_line(linetype = 'dashed', color = '#4d6a66'),
+  panel.grid.minor = element_line(color = '#293535'),
+  text = element_text(size = 16)
+)
+# ----
 
 # COVID_df <- confirmed_df %>% 
 #   left_join(deaths_df %>% select(Lat, Long, Date, Deaths, Deaths.Sqrt), 
@@ -93,8 +100,8 @@ ixic_data$stock_id <- as.character(ixic_data$stock_id)
 # 
 # COVID_df[duplicated(COVID_df %>% select(Lat, Long, Date)),]
 # 
-# corp_debt_spdf <- read.csv('data/corp_debt.csv') %>% 
-#   joinCountryData2Map(joinCode = "ISO3", nameJoinColumn = "LOCATION")
+corp_debt_spdf <- read.csv('data/corp_debt.csv') %>% 
+  joinCountryData2Map(joinCode = "ISO3", nameJoinColumn = "LOCATION")
 # 
 # bins <- c(0,4,8,12,16,20)
 # mypal <- colorBin("YlGnBu", domain=corp_debt_spdf@data$Value, bins=bins, na.color="transparent")
@@ -126,13 +133,24 @@ ixic_data$stock_id <- as.character(ixic_data$stock_id)
 # )
 
 ui <- fluidPage(
+  setBackgroundColor(
+    color = "#1A1A1A"
+  ),
+  tags$head(
+    tags$style(
+      'body {
+        color:#fffacd;
+        font-family:Verdana;}',
+      HTML(".leaflet-container { background: #293535; }")
+    )
+  ),
   titlePanel('The Impact of COVID19 on the Economy'),
   fluidRow(
     column(
       2,h2(textOutput("show_date"), align='center'),
-      span(h3(textOutput("n_confirmed")), style='color:orange'),
-      span(h3(textOutput("n_deaths")), style='color:red'),
-      span(h3(textOutput("n_recovered")), style='color:blue'),
+      span(h3(textOutput("n_confirmed")), style='color:#d4af37'),
+      span(h3(textOutput("n_recovered")), style='color:#79cdcd'),
+      span(h3(textOutput("n_deaths")), style='color:#cd5555'),
       sliderInput(
         "date",
         label = ("Select Date:"),
@@ -189,27 +207,27 @@ server <- function(input, output) {
   
   output$bubblemap <- renderLeaflet({
     leaflet() %>% 
-      addTiles() %>% 
-      setView(lng=10, lat=30, zoom=2) %>% 
-      addProviderTiles("CartoDB.Positron")
+      addPolygons(data = corp_debt_spdf, 
+                  weight = 1,
+                  color = '#293535',
+                  fillColor = '#4d6a66',
+                  fillOpacity = 1) %>% 
+      #addTiles(options = tileop) %>% 
+      setView(lng=10, lat=30, zoom=2) #%>% 
+      #addProviderTiles("CartoDB.DarkMatter")
   })
   
   observeEvent(input$date, {
     leafletProxy('bubblemap') %>% 
-      clearMarkers() %>% 
-      # addPolygons(data = corp_debt_spdf, 
-      #             weight = 1,
-      #             color = 'black',
-      #             fillColor = ~mypal(Value),
-      #             fillOpacity = 1) %>% 
+      clearMarkers() %>%
       addCircleMarkers(
         data = r_confirmed(),
         ~Long, ~Lat,
         radius = ~Confirmed.Sqrt / 10,
         weight = 1,
-        color = 'orange',
-        fillColor = 'orange',
-        fillOpacity = 0.4,
+        color = '#d4af37',
+        fillColor = '#d4af37',
+        fillOpacity = 0.6,
         label = sprintf(
           '<strong>%s</strong><br/>%d Confirmed<br/>',
           r_confirmed()$Country.Region, 
@@ -220,27 +238,29 @@ server <- function(input, output) {
         ~Long, ~Lat,
         radius = ~Recovered.Sqrt / 10,
         weight = 1,
-        color = 'blue',
-        fillColor = 'blue',
-        fillOpacity = 0.3
+        color = '#79cdcd',
+        fillColor = '#79cdcd',
+        fillOpacity = 0.5
       ) %>% 
       addCircleMarkers(
         data = r_deaths(),
         ~Long, ~Lat,
         radius = ~Deaths.Sqrt / 10,
         weight = 1,
-        color = 'red',
-        fillColor = 'red',
-        fillOpacity = 0.5
+        color = '#cd5555',
+        fillColor = '#cd5555',
+        fillOpacity = 0.7
       )
   })
   
   output$coolplot <- renderPlot({
-    ggplot(dji_data, aes(x=date, y=Close, group=1)) +
-      geom_line() + 
+    ggplot(dji_data, aes(x=date, y=as.integer(Close))) +
+      geom_line(col = 'gold') +
+      geom_line(data = gspc_data, col = 'tomato') +
+      geom_line(data = ixic_data, col = 'seagreen3') +
+      #scale_y_continuous(breaks=c(10000, 50000)) +
       xlab("") + 
-      geom_line(data = gspc_data) +
-      geom_line(data = ixic_data)
+      my_theme
   })
 }
 
