@@ -47,39 +47,30 @@ recovered_df <- read.csv(recovered_url) %>%
 # STOCKS DATA ----
 eco_url = 'http://finmindapi.servebeer.com/api/data'
 
-# Data Download
-payload <- list('dataset' = 'USStockPrice',
-                'stock_id' = '^GSPC',
-                'date'='2020-01-22')
-response = POST(eco_url,body = payload, encode = "form")
-gspc_data = response %>% content
-gspc_data = do.call('cbind', gspc_data$data) %>% data.table
+# Fx to obtain stock time series data
+get_stock_data <- function(stock_id){
+  payload <- list('dataset' = 'USStockPrice',
+                  'stock_id' = stock_id,
+                  'date'='2020-01-22')
+  response <- POST(eco_url, body = payload, encode = "form")
+  print(stock_id)
+  data <- response %>% content
+  
+  df <- do.call('cbind', data$data) %>% 
+    data.table %>% 
+    unnest(cols = colnames(.))
+  
+  return(df)
+}
 
-payload <- list('dataset' = 'USStockPrice',
-                'stock_id' = '^DJI',
-                'date'='2020-01-22' )
-response = POST(eco_url,body = payload, encode = "form")
-dji_data = response %>% content
-dji_data = do.call('cbind', dji_data$data) %>% data.table
+# Run if data/stock_data.csv does not exist
+# stock_data <- c('^GSPC', '^DJI', '^IXIC') %>% 
+#   map(get_stock_data) %>% 
+#   bind_rows()
+# write_csv(stock_data, 'data/stock_data.csv')
 
-payload <- list('dataset' = 'USStockPrice',
-                'stock_id' = '^IXIC',
-                'date' = '2020-01-22' )
-response = POST(eco_url,body = payload, encode = "form")
-ixic_data = response %>% content
-ixic_data = do.call('cbind', ixic_data$data) %>% data.table
-
-gspc_data$Close <- as.character(gspc_data$Close)
-gspc_data$date <- anytime::anydate(as.character(gspc_data$date))
-gspc_data$stock_id <- as.character(gspc_data$stock_id)
-
-dji_data$Close <- as.character(dji_data$Close)
-dji_data$date <- anytime::anydate(as.character(dji_data$date))
-dji_data$stock_id <- as.character(dji_data$stock_id)
-
-ixic_data$Close <- as.character(ixic_data$Close)
-ixic_data$date <- anytime::anydate(as.character(ixic_data$date))
-ixic_data$stock_id <- as.character(ixic_data$stock_id)
+stock_data <- read.csv('data/stock_data.csv', stringsAsFactors = F) %>% 
+  mutate(date = as.Date(date))
 # ----
 
 # Aesthetics ----
@@ -87,7 +78,7 @@ my_theme <- theme(
   panel.background = element_rect(fill = '#293535'),
   panel.grid.major = element_line(linetype = 'dashed', color = '#4d6a66'),
   panel.grid.minor = element_line(color = '#293535'),
-  text = element_text(size = 16)
+  text = element_text(size = 18)
 )
 # ----
 
@@ -100,42 +91,21 @@ my_theme <- theme(
 # 
 # COVID_df[duplicated(COVID_df %>% select(Lat, Long, Date)),]
 # 
-corp_debt_spdf <- read.csv('data/corp_debt.csv') %>% 
-  joinCountryData2Map(joinCode = "ISO3", nameJoinColumn = "LOCATION")
-# 
-# bins <- c(0,4,8,12,16,20)
-# mypal <- colorBin("YlGnBu", domain=corp_debt_spdf@data$Value, bins=bins, na.color="transparent")
+# corp_debt_spdf <- read.csv('data/corp_debt.csv') %>% 
+#   joinCountryData2Map(joinCode = "ISO3", nameJoinColumn = "LOCATION")
 
+# spatial dataframe of the world
+world_map <- getMap(resolution = 'coarse')
 # ----
 
-# ui <- fluidPage(
-#   titlePanel('The Impact of COVID19 on the Economy'),
-#   sidebarLayout(
-#     sidebarPanel(
-#       h2(textOutput("show_date"), align='center'),
-#       span(h3(textOutput("n_confirmed")), style='color:orange'),
-#       span(h3(textOutput("n_deaths")), style='color:red'),
-#       span(h3(textOutput("n_recovered")), style='color:blue'),
-#       sliderInput(
-#         "date", 
-#         label = ("Select Date:"),
-#         min = min(confirmed_df$Date),
-#         max = max(confirmed_df$Date),
-#         value = max(confirmed_df$Date),
-#         animate = animationOptions(interval=600, loop=F),
-#         timeFormat = "%d %b"
-#       )
-#     ),
-#     mainPanel(
-#       leafletOutput("bubblemap")
-#     )
-#   )
-# )
-
 ui <- fluidPage(
+  
+  # background color
   setBackgroundColor(
     color = "#1A1A1A"
   ),
+  
+  # text styling and background color for map
   tags$head(
     tags$style(
       'body {
@@ -144,10 +114,15 @@ ui <- fluidPage(
       HTML(".leaflet-container { background: #293535; }")
     )
   ),
+  
+  # main title
   titlePanel('The Impact of COVID19 on the Economy'),
+  
+  # 3 column layout
   fluidRow(
     column(
-      2,h2(textOutput("show_date"), align='center'),
+      2,selectInput('map_view', label = NULL, choices = c('Worldwide', 'Canada', 'USA')),
+      h2(textOutput("show_date"), align='center'),
       span(h3(textOutput("n_confirmed")), style='color:#d4af37'),
       span(h3(textOutput("n_recovered")), style='color:#79cdcd'),
       span(h3(textOutput("n_deaths")), style='color:#cd5555'),
@@ -169,6 +144,35 @@ ui <- fluidPage(
     )
   )
 )
+
+# library(raster)
+# 
+# provinces <- raster::getData("GADM", country = "Canada", level=1)
+# 
+# mapPolys(provinces, nameColumnToPlot = 'NAME_1')
+
+#https://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/bound-limit-2016-eng.cfm
+#canada <- shapefile('data/canada.shp')
+
+#library(sf)
+
+# https://eric.clst.org/tech/usgeojson/
+# usa <- rgdal::readOGR('data/USA.json')
+
+# https://thomson.carto.com/tables/canada_provinces/public/map
+# canada <- rgdal::readOGR('data/canada_provinces.geojson')
+# 
+# 
+# leaflet() %>% #addTiles() %>% 
+#   addPolygons(data = usa,
+#               weight = 1,
+#               fillColor = '#4d6a66',
+#               fillOpacity = 1)%>% 
+#   addPolygons(data = canada, 
+#               weight = 1,
+#               color = '#293535',
+#               fillColor = '#4d6a66',
+#               fillOpacity = 1)
 
 server <- function(input, output) {
   r_confirmed <- reactive({
@@ -206,15 +210,12 @@ server <- function(input, output) {
   })
   
   output$bubblemap <- renderLeaflet({
-    leaflet() %>% 
-      addPolygons(data = corp_debt_spdf, 
-                  weight = 1,
+    leaflet(rworldmap::countriesLow) %>% 
+      addPolygons(weight = 1,
                   color = '#293535',
                   fillColor = '#4d6a66',
                   fillOpacity = 1) %>% 
-      #addTiles(options = tileop) %>% 
-      setView(lng=10, lat=30, zoom=2) #%>% 
-      #addProviderTiles("CartoDB.DarkMatter")
+      setView(lng=10, lat=30, zoom=2)
   })
   
   observeEvent(input$date, {
@@ -254,13 +255,13 @@ server <- function(input, output) {
   })
   
   output$coolplot <- renderPlot({
-    ggplot(dji_data, aes(x=date, y=as.integer(Close))) +
-      geom_line(col = 'gold') +
-      geom_line(data = gspc_data, col = 'tomato') +
-      geom_line(data = ixic_data, col = 'seagreen3') +
+    ggplot(stock_data, aes(x=date, y=Close, col=stock_id)) +
+      geom_line() +
+      scale_color_manual(values = c('^GSPC'='gold', '^DJI'='tomato', '^IXIC'='seagreen3')) +
       #scale_y_continuous(breaks=c(10000, 50000)) +
       xlab("") + 
-      my_theme
+      my_theme +
+      theme(legend.position = 'top')
   })
 }
 
