@@ -12,10 +12,29 @@ parent_url = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/c
 
 # urls for csv files
 confirmed_url = str_c(parent_url,'time_series_covid19_confirmed_global.csv')
+confirmed_us_url = str_c(parent_url,'time_series_covid19_confirmed_US.csv')
+
 deaths_url = str_c(parent_url,'time_series_covid19_deaths_global.csv')
+deaths_us_url = str_c(parent_url,'time_series_covid19_deaths_US.csv')
+
 recovered_url = str_c(parent_url,'time_series_covid19_recovered_global.csv')
+# recovered data from US not available
+
+# a <- confirmed_df %>% filter(Country.Region=='US')
+# b <- recovered_df %>% filter(Country.Region=='US')
+# c <- deaths_df %>% filter(Country.Region=='US')
+# 
+# check <- full_join(a, b, by=c('Date'))
 
 # fx to convert wide to long format
+wide_to_long <- function(wide_df){
+  long_df <- wide_df %>% 
+    gather(Date, Cases, ends_with('0')) %>%
+    mutate(Date = Date %>%
+             as.Date(format='%m/%d/%y'))
+  return(long_df)
+}
+
 wide_to_long <- function(wide_df){
   long_df <- wide_df %>% 
     gather(Date, Cases, starts_with('x')) %>% 
@@ -26,14 +45,28 @@ wide_to_long <- function(wide_df){
   return(long_df)
 }
 
+confirmed_us_df <- read.csv(confirmed_us_url) %>%
+  wide_to_long() %>% 
+  select(Province.State = Province_State, Country.Region = Country_Region, 
+         Lat, Long = Long_, Date, Confirmed = Cases)
+
 confirmed_df <- read.csv(confirmed_url) %>% 
   wide_to_long() %>% 
-  rename(Confirmed = Cases) %>% 
+  rename(Confirmed = Cases) %>%
+  filter(Country.Region != 'US') %>% 
+  rbind(confirmed_us_df) %>% 
   mutate(Confirmed.Sqrt = sqrt(Confirmed))
+
+deaths_us_df <- read.csv(deaths_us_url) %>%
+  wide_to_long() %>% 
+  select(Province.State = Province_State, Country.Region = Country_Region, 
+         Lat, Long = Long_, Date, Deaths = Cases)
 
 deaths_df <- read.csv(deaths_url) %>% 
   wide_to_long() %>% 
-  rename(Deaths = Cases) %>% 
+  rename(Deaths = Cases) %>%
+  filter(Country.Region != 'US') %>% 
+  rbind(deaths_us_df) %>%
   mutate(Deaths.Sqrt = sqrt(Deaths))
 
 recovered_df <- read.csv(recovered_url) %>% 
@@ -71,7 +104,7 @@ stock_data <- read.csv('data/stock_data.csv', stringsAsFactors = F) %>%
   mutate(date = as.Date(date))
 # ----
 
-# Aesthetics ----
+# ggplot Aesthetics ----
 my_theme <- theme(
   plot.background = element_rect(fill = '#293535', color = '#293535'),
   plot.margin = unit(c(1.5,1.5,1.5,1.5), 'cm'),
@@ -101,12 +134,24 @@ my_theme <- theme(
 world <- getMap(resolution = 'low')
 
 # https://eric.clst.org/tech/usgeojson/
-usa <- rgdal::readOGR('data/USA.json')
+usa <- rgdal::readOGR('data/USA_20m.json')
 
 # https://thomson.carto.com/tables/canada_provinces/public/map
 canada <- rgdal::readOGR('data/canada_provinces.geojson')
 
 # ----
+
+# leaflet() %>% #addTiles() %>%
+#   addPolygons(data = world,
+#               weight = 1,
+#               color = '#293535',
+#               fillColor = '#1D2626',
+#               fillOpacity = 1) %>% 
+#   addPolygons(data = usa,
+#               weight = 1,
+#               color = '#293535',
+#               fillColor = '#4d6a66',
+#               fillOpacity = 1)
 
 ui <- fluidPage(
   
@@ -166,28 +211,6 @@ ui <- fluidPage(
   )
 )
 
-# library(raster)
-# 
-# provinces <- raster::getData("GADM", country = "Canada", level=1)
-# 
-# mapPolys(provinces, nameColumnToPlot = 'NAME_1')
-
-#https://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/bound-limit-2016-eng.cfm
-#canada <- shapefile('data/canada.shp')
-
-#library(sf)
-
-# leaflet() %>% #addTiles() %>% 
-#   addPolygons(data = usa,
-#               weight = 1,
-#               fillColor = '#4d6a66',
-#               fillOpacity = 1)%>% 
-#   addPolygons(data = canada, 
-#               weight = 1,
-#               color = '#293535',
-#               fillColor = '#4d6a66',
-#               fillOpacity = 1)
-
 leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
   addPolygons(data = world,
               weight = 1,
@@ -209,20 +232,48 @@ leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>%
                    fillColor = '#d4af37',
                    fillOpacity = 0.6)
 
+# a <- confirmed_df %>% 
+#   filter(Date==max(confirmed_df$Date) & Confirmed>0)
+# 
+# str_c(format(as.integer(sum(a$Confirmed, na.rm=T)), 
+#              big.mark=','), ' Confirmed')
+# 
+# b <- deaths_df %>% 
+#   filter(Date==max(deaths_df$Date) & Deaths>0)
+# 
+# str_c(format(as.integer(sum(b$Deaths, na.rm=T)), 
+#              big.mark=','), ' Confirmed')
+
 server <- function(input, output) {
   r_confirmed <- reactive({
-    confirmed_df %>% 
-      filter(Date==input$date & Confirmed>0)
+    if (input$map_view == 'Worldwide') {
+      confirmed_df %>% 
+        filter(Date==input$date & Confirmed>=10)
+    } else if (input$map_view == 'Canada') {
+      confirmed_df %>% 
+        filter(Date==input$date & Confirmed>=10 & Country.Region=='Canada')
+    } else if (input$map_view == 'USA') {
+      confirmed_df %>% 
+        filter(Date==input$date & Confirmed>=10 & Country.Region=='US')
+    }
   })
   
   r_deaths <- reactive({
-    deaths_df %>% 
-      filter(Date==input$date & Deaths>0)
+    if (input$map_view == 'Worldwide') {
+      deaths_df %>% 
+        filter(Date==input$date & Deaths>=10)
+    } else if (input$map_view == 'Canada') {
+      deaths_df %>% 
+        filter(Date==input$date & Deaths>=10 & Country.Region=='Canada')
+    } else if (input$map_view == 'USA') {
+      deaths_df %>% 
+        filter(Date==input$date & Deaths>=10 & Country.Region=='US')
+    }
   })
   
   r_recovered <- reactive({
     recovered_df %>% 
-      filter(Date==input$date & Recovered>0)
+      filter(Date==input$date & Recovered>=10)
   })
   
   output$show_date <- renderText({ 
@@ -265,37 +316,6 @@ server <- function(input, output) {
                   color = '#293535',
                   fillColor = '#4d6a66',
                   fillOpacity = 1) %>%
-      # addCircleMarkers(
-      #   data = r_confirmed(),
-      #   ~Long, ~Lat,
-      #   radius = ~Confirmed.Sqrt / 10,
-      #   weight = 1,
-      #   color = '#d4af37',
-      #   fillColor = '#d4af37',
-      #   fillOpacity = 0.6,
-      #   label = sprintf(
-      #     '<strong>%s</strong><br/>%d Confirmed<br/>',
-      #     r_confirmed()$Country.Region, 
-      #     r_confirmed()$Confirmed) %>% lapply(htmltools::HTML)
-      # ) %>% 
-      # addCircleMarkers(
-      #   data = r_recovered(),
-      #   ~Long, ~Lat,
-      #   radius = ~Recovered.Sqrt / 10,
-      #   weight = 1,
-      #   color = '#79cdcd',
-      #   fillColor = '#79cdcd',
-      #   fillOpacity = 0.5
-      # ) %>% 
-      # addCircleMarkers(
-      #   data = r_deaths(),
-      #   ~Long, ~Lat,
-      #   radius = ~Deaths.Sqrt / 10,
-      #   weight = 1,
-      #   color = '#cd5555',
-      #   fillColor = '#cd5555',
-      #   fillOpacity = 0.7
-      # )
       setView(lng=-100, lat=60, zoom=3) %>% 
       setMaxBounds(lng1=-130, lng2=-70, lat1=30, lat2=90)
   })
