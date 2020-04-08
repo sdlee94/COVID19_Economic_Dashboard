@@ -20,6 +20,8 @@ deaths_us_url = str_c(parent_url,'time_series_covid19_deaths_US.csv')
 recovered_url = str_c(parent_url,'time_series_covid19_recovered_global.csv')
 # recovered data from US not available
 
+a <- read.csv('data/BCPI_WEEKLY-sd-1972-01-01.csv')
+
 # a <- confirmed_df %>% filter(Country.Region=='US')
 # b <- recovered_df %>% filter(Country.Region=='US')
 # c <- deaths_df %>% filter(Country.Region=='US')
@@ -27,13 +29,13 @@ recovered_url = str_c(parent_url,'time_series_covid19_recovered_global.csv')
 # check <- full_join(a, b, by=c('Date'))
 
 # fx to convert wide to long format
-wide_to_long <- function(wide_df){
-  long_df <- wide_df %>% 
-    gather(Date, Cases, ends_with('0')) %>%
-    mutate(Date = Date %>%
-             as.Date(format='%m/%d/%y'))
-  return(long_df)
-}
+# wide_to_long <- function(wide_df){
+#   long_df <- wide_df %>% 
+#     gather(Date, Cases, ends_with('0')) %>%
+#     mutate(Date = Date %>%
+#              as.Date(format='%m/%d/%y'))
+#   return(long_df)
+# }
 
 wide_to_long <- function(wide_df){
   long_df <- wide_df %>% 
@@ -46,32 +48,36 @@ wide_to_long <- function(wide_df){
 }
 
 confirmed_us_df <- read.csv(confirmed_us_url) %>%
-  wide_to_long() %>% 
+  wide_to_long() %>%
+  filter(Cases>0) %>% 
   select(Province.State = Province_State, Country.Region = Country_Region, 
          Lat, Long = Long_, Date, Confirmed = Cases)
+
+deaths_us_df <- read.csv(deaths_us_url) %>%
+  wide_to_long() %>%
+  filter(Cases>0) %>% 
+  select(Province.State = Province_State, Country.Region = Country_Region, 
+         Lat, Long = Long_, Date, Deaths = Cases)
 
 confirmed_df <- read.csv(confirmed_url) %>% 
   wide_to_long() %>% 
   rename(Confirmed = Cases) %>%
-  filter(Country.Region != 'US') %>% 
+  filter(Country.Region != 'US', Confirmed>0) %>% 
   rbind(confirmed_us_df) %>% 
   mutate(Confirmed.Sqrt = sqrt(Confirmed))
-
-deaths_us_df <- read.csv(deaths_us_url) %>%
-  wide_to_long() %>% 
-  select(Province.State = Province_State, Country.Region = Country_Region, 
-         Lat, Long = Long_, Date, Deaths = Cases)
 
 deaths_df <- read.csv(deaths_url) %>% 
   wide_to_long() %>% 
   rename(Deaths = Cases) %>%
-  filter(Country.Region != 'US') %>% 
+  filter(Country.Region != 'US', Deaths>0) %>% 
   rbind(deaths_us_df) %>%
   mutate(Deaths.Sqrt = sqrt(Deaths))
 
+# recovered data is reported by country
 recovered_df <- read.csv(recovered_url) %>% 
   wide_to_long() %>% 
-  rename(Recovered = Cases) %>% 
+  rename(Recovered = Cases) %>%
+  filter(Recovered>0) %>% 
   mutate(Recovered.Sqrt = sqrt(Recovered))
 # ----
 
@@ -211,26 +217,26 @@ ui <- fluidPage(
   )
 )
 
-leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
-  addPolygons(data = world,
-              weight = 1,
-              color = '#293535',
-              fillColor = '#1D2626',
-              fillOpacity = 1) %>% 
-  addPolygons(data = canada,
-              weight = 1,
-              color = '#293535',
-              fillColor = '#4d6a66',
-              fillOpacity = 1) %>% 
-  setView(lng=-100, lat=60, zoom=3) %>% 
-  setMaxBounds(lng1=-130, lng2=-70, lat1=30, lat2=90) %>% 
-  addCircleMarkers(data = confirmed_df,
-                   ~Long, ~Lat,
-                   radius = ~Confirmed.Sqrt / 10,
-                   weight = 1,
-                   color = '#d4af37',
-                   fillColor = '#d4af37',
-                   fillOpacity = 0.6)
+# leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
+#   addPolygons(data = world,
+#               weight = 1,
+#               color = '#293535',
+#               fillColor = '#1D2626',
+#               fillOpacity = 1) %>% 
+#   addPolygons(data = canada,
+#               weight = 1,
+#               color = '#293535',
+#               fillColor = '#4d6a66',
+#               fillOpacity = 1) %>% 
+#   setView(lng=-100, lat=60, zoom=3) %>% 
+#   setMaxBounds(lng1=-130, lng2=-70, lat1=30, lat2=90) %>% 
+#   addCircleMarkers(data = confirmed_df,
+#                    ~Long, ~Lat,
+#                    radius = ~Confirmed.Sqrt / 10,
+#                    weight = 1,
+#                    color = '#d4af37',
+#                    fillColor = '#d4af37',
+#                    fillOpacity = 0.6)
 
 # a <- confirmed_df %>% 
 #   filter(Date==max(confirmed_df$Date) & Confirmed>0)
@@ -248,32 +254,32 @@ server <- function(input, output) {
   r_confirmed <- reactive({
     if (input$map_view == 'Worldwide') {
       confirmed_df %>% 
-        filter(Date==input$date & Confirmed>=10)
+        filter(Date==input$date)
     } else if (input$map_view == 'Canada') {
       confirmed_df %>% 
-        filter(Date==input$date & Confirmed>=10 & Country.Region=='Canada')
+        filter(Date==input$date & Country.Region=='Canada')
     } else if (input$map_view == 'USA') {
       confirmed_df %>% 
-        filter(Date==input$date & Confirmed>=10 & Country.Region=='US')
+        filter(Date==input$date & Country.Region=='US')
     }
   })
   
   r_deaths <- reactive({
     if (input$map_view == 'Worldwide') {
       deaths_df %>% 
-        filter(Date==input$date & Deaths>=10)
+        filter(Date==input$date)
     } else if (input$map_view == 'Canada') {
       deaths_df %>% 
-        filter(Date==input$date & Deaths>=10 & Country.Region=='Canada')
+        filter(Date==input$date & Country.Region=='Canada')
     } else if (input$map_view == 'USA') {
       deaths_df %>% 
-        filter(Date==input$date & Deaths>=10 & Country.Region=='US')
+        filter(Date==input$date & Country.Region=='US')
     }
   })
   
   r_recovered <- reactive({
     recovered_df %>% 
-      filter(Date==input$date & Recovered>=10)
+      filter(Date==input$date)
   })
   
   output$show_date <- renderText({ 
@@ -337,39 +343,68 @@ server <- function(input, output) {
   })
   
   update_map <- function(leaflet_map) {
-    leafletProxy(leaflet_map) %>% 
-      clearMarkers() %>%
-      addCircleMarkers(
-        data = r_confirmed(),
-        ~Long, ~Lat,
-        radius = ~Confirmed.Sqrt / 10,
-        weight = 1,
-        color = '#d4af37',
-        fillColor = '#d4af37',
-        fillOpacity = 0.6,
-        label = sprintf(
-          '<strong>%s</strong><br/>%d Confirmed<br/>',
-          r_confirmed()$Country.Region, 
-          r_confirmed()$Confirmed) %>% lapply(htmltools::HTML)
-      ) %>%
-      addCircleMarkers(
-        data = r_recovered(),
-        ~Long, ~Lat,
-        radius = ~Recovered.Sqrt / 10,
-        weight = 1,
-        color = '#79cdcd',
-        fillColor = '#79cdcd',
-        fillOpacity = 0.5
-      ) %>% 
-      addCircleMarkers(
-        data = r_deaths(),
-        ~Long, ~Lat,
-        radius = ~Deaths.Sqrt / 10,
-        weight = 1,
-        color = '#cd5555',
-        fillColor = '#cd5555',
-        fillOpacity = 0.7
-      )
+    if (input$map_view == 'Worldwide') {
+      leafletProxy(leaflet_map) %>% 
+        clearMarkers() %>%
+        addCircleMarkers(
+          data = r_confirmed(),
+          ~Long, ~Lat,
+          radius = ~Confirmed.Sqrt / 10,
+          weight = 1,
+          color = '#d4af37',
+          fillColor = '#d4af37',
+          fillOpacity = 0.6,
+          label = sprintf(
+            '<strong>%s</strong>, %s<br/>%s Confirmed<br/>',
+            r_confirmed()$Country.Region,
+            r_confirmed()$Province.State,
+            format(r_confirmed()$Confirmed, big.mark=',')) %>% lapply(htmltools::HTML)
+        ) %>%
+        addCircleMarkers(
+          data = r_recovered(),
+          ~Long, ~Lat,
+          radius = ~Recovered.Sqrt / 10,
+          weight = 1,
+          color = '#79cdcd',
+          fillColor = '#79cdcd',
+          fillOpacity = 0.5
+        ) %>% 
+        addCircleMarkers(
+          data = r_deaths(),
+          ~Long, ~Lat,
+          radius = ~Deaths.Sqrt / 10,
+          weight = 1,
+          color = '#cd5555',
+          fillColor = '#cd5555',
+          fillOpacity = 0.7
+        ) 
+    } else {
+      leafletProxy(leaflet_map) %>% 
+        clearMarkers() %>%
+        addCircleMarkers(
+          data = r_confirmed(),
+          ~Long, ~Lat,
+          radius = ~Confirmed.Sqrt / 10,
+          weight = 1,
+          color = '#d4af37',
+          fillColor = '#d4af37',
+          fillOpacity = 0.6,
+          label = sprintf(
+            '<strong>%s</strong>, %s<br/>%s Confirmed<br/>',
+            r_confirmed()$Country.Region,
+            r_confirmed()$Province.State,
+            format(r_confirmed()$Confirmed, big.mark=',')) %>% lapply(htmltools::HTML)
+        ) %>%
+        addCircleMarkers(
+          data = r_deaths(),
+          ~Long, ~Lat,
+          radius = ~Deaths.Sqrt / 10,
+          weight = 1,
+          color = '#cd5555',
+          fillColor = '#cd5555',
+          fillOpacity = 0.7
+        ) 
+    }
   }
   
   observeEvent({
