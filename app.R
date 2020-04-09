@@ -20,7 +20,7 @@ deaths_us_url = str_c(parent_url,'time_series_covid19_deaths_US.csv')
 recovered_url = str_c(parent_url,'time_series_covid19_recovered_global.csv')
 # recovered data from US not available
 
-a <- read.csv('data/BCPI_WEEKLY-sd-1972-01-01.csv')
+#a <- read.csv('data/BCPI_WEEKLY-sd-1972-01-01.csv')
 
 # a <- confirmed_df %>% filter(Country.Region=='US')
 # b <- recovered_df %>% filter(Country.Region=='US')
