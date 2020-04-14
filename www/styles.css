@@ -1,0 +1,28 @@
+body {
+  color: #fffacd;
+  font-family: Verdana;
+  background-color: #1A1A1A;
+}
+.leaflet-container {
+  background: #293535;
+}
+.irs {
+        margin-top: 25px;
+}
+.irs-grid-pol {
+        background-color: #fffacd;
+}
+.irs-grid-pol.small {
+  display: none;
+}
+.irs-grid-text {
+        display: none;
+}
+.irs-single {
+        color: #fffacd;
+        font-size: 18px;
+        background-color: #1a1a1a;
+        top: -20px;
+        display: flex;
+        flex-wrap: wrap;
+}

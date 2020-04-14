@@ -160,25 +160,12 @@ canada <- rgdal::readOGR('data/canada_provinces.geojson')
 #               fillOpacity = 1)
 
 ui <- fluidPage(
-  
-  # background color
-  setBackgroundColor(
-    color = "#1A1A1A"
-  ),
-  
   # text styling and background color for map
   tags$head(
-    tags$style(
-      'body {
-        color:#fffacd;
-        font-family:Verdana;}',
-      HTML(".leaflet-container { background: #293535; }")
-    )
+    tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
   ),
-  
-  # main title
+    # main title
   titlePanel('The Impact of COVID19 on the Economy'),
-  
   # 3 column layout
   fluidRow(
     column(
@@ -187,14 +174,17 @@ ui <- fluidPage(
       span(h3(textOutput("n_confirmed")), style='color:#d4af37'),
       span(h3(textOutput("n_recovered")), style='color:#79cdcd'),
       span(h3(textOutput("n_deaths")), style='color:#cd5555'),
-      sliderInput(
+      tags$div(
+        sliderInput(
         "date",
-        label = ("Select Date:"),
+        label = ("Date"),
         min = min(confirmed_df$Date),
         max = max(confirmed_df$Date),
         value = max(confirmed_df$Date),
         animate = animationOptions(interval=600, loop=F),
-        timeFormat = "%d %b"
+        timeFormat = "%d %b",
+        width = "90%"
+        )
       )
     ),
     column(6, 
@@ -214,8 +204,14 @@ ui <- fluidPage(
     column(
       4,plotOutput('coolplot')
     )
-  )
+  ),
 )
+  
+  
+  
+  
+
+
 
 # leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
 #   addPolygons(data = world,
