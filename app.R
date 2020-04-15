@@ -159,63 +159,120 @@ canada <- rgdal::readOGR('data/canada_provinces.geojson')
 #               fillColor = '#4d6a66',
 #               fillOpacity = 1)
 
-ui <- fluidPage(
-  
-  # background color
-  setBackgroundColor(
-    color = "#1A1A1A"
-  ),
-  
-  # text styling and background color for map
-  tags$head(
-    tags$style(
-      'body {
-        color:#fffacd;
-        font-family:Verdana;}',
-      HTML(".leaflet-container { background: #293535; }")
-    )
-  ),
-  
-  # main title
-  titlePanel('The Impact of COVID19 on the Economy'),
-  
-  # 3 column layout
-  fluidRow(
-    column(
-      2,selectInput('map_view', label = NULL, choices = c('Worldwide', 'Canada', 'USA')),
-      h2(textOutput("show_date"), align='center'),
-      span(h3(textOutput("n_confirmed")), style='color:#d4af37'),
-      span(h3(textOutput("n_recovered")), style='color:#79cdcd'),
-      span(h3(textOutput("n_deaths")), style='color:#cd5555'),
-      sliderInput(
-        "date",
-        label = ("Select Date:"),
-        min = min(confirmed_df$Date),
-        max = max(confirmed_df$Date),
-        value = max(confirmed_df$Date),
-        animate = animationOptions(interval=600, loop=F),
-        timeFormat = "%d %b"
-      )
-    ),
-    column(6, 
-      conditionalPanel(
-        condition = "input.map_view == 'Worldwide'",
-        leafletOutput("world_map")
-      ), 
-      conditionalPanel(
-        condition = "input.map_view == 'Canada'",
-        leafletOutput("canada_map")
+
+# new page layout with tabs at the top
+
+ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
+                 
+
+  # first tab of the layout, recorded cases and world map
+  tabPanel("Recorded Cases", 
+           
+    fluidRow(
+      column(1),
+      column(3,
+        tags$div(class = "sidebar-container",
+          tags$div(class = "sidebar-title",
+            h4("Confirmed Cases")
+          ),
+          span(h3(textOutput("n_confirmed")), style='color:#d4af37'),
+          tags$p(class = "sidebar-percentage", "##%"),
+        ),
+        tags$div(class = "sidebar-container",
+          tags$div(class = "sidebar-title", 
+            h4("Recovered") 
+          ),
+          span(h3(textOutput("n_recovered")), style='color:#79cdcd'),
+          tags$p(class = "sidebar-percentage", "##%"),
+        ),
+        tags$div(class = "sidebar-container", 
+          tags$div(class = "sidebar-title", 
+            h4("Deaths") 
+          ),
+          span(h3(textOutput("n_deaths")), style='color:#cd5555'),
+          tags$p(class = "sidebar-percentage", "##%"),
+        ),
+        tags$footer(class = "sidebar-date-container", 
+          tags$p(class = "sidebar-date", textOutput("show_date"))
+        )
       ),
-      conditionalPanel(
-        condition = "input.map_view == 'USA'",
-        leafletOutput("usa_map")
-      )
+      column(7,
+        tags$div(class = "map-select", 
+          selectInput('map_view', label = NULL, choices = c('Worldwide', 'Canada', 'USA'), width = "30%"),
+        ),
+        conditionalPanel(
+          condition = "input.map_view == 'Worldwide'",
+          leafletOutput("world_map")
+        ), 
+        conditionalPanel(
+          condition = "input.map_view == 'Canada'",
+          leafletOutput("canada_map")
+        ),
+        conditionalPanel(
+          condition = "input.map_view == 'USA'",
+          leafletOutput("usa_map")
+        ),     
+      ),
+      column(1)
     ),
-    column(
-      4,plotOutput('coolplot')
+    
+    # slider input
+    fluidRow(
+      column(1),
+      column(10, 
+        tags$div(
+            sliderInput("date",
+               label = ("Date"),
+               min = min(confirmed_df$Date),
+               max = max(confirmed_df$Date),
+               value = max(confirmed_df$Date),
+               animate = animationOptions(interval=600, loop=F),
+               timeFormat = "%d %b",
+               width = "100%"
+             )
+         )
+      ),
+      column(1)
     )
+  ),
+    
+  # second tab of the layout, economy data and chart
+  tabPanel("Economy", 
+    fluidRow(
+      column(1),
+      column(3,
+        span(h3("DJI"), style='color:#000000'),
+        span(h3("GSPC"), style='color:#000000'),
+        span(h3("IXIC"), style='color:#000000')
+      ),
+      column(
+        7,plotOutput('coolplot')
+      ),
+      column(1)
+    )
+  ),
+  
+  # third tab of the layout, placeholder for commodities data
+  tabPanel("Commodities", 
+     fluidRow(
+       column(1),
+       column(3,
+         span(h3("Natural Gas"), style='color:#d4af37'),
+         span(h3("Gold"), style='color:#79cdcd'),
+         span(h3("Cotton"), style='color:#cd5555')
+       ),
+       column(
+           7, "placeholder"
+       )
+     )
   )
 )
+  
+  
+  
+  
+
+
 
 # leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
 #   addPolygons(data = world,
@@ -288,24 +345,24 @@ server <- function(input, output) {
   
   output$n_confirmed <- renderText({ 
     str_c(format(as.integer(sum(r_confirmed()$Confirmed, na.rm=T)), 
-                 big.mark=','), ' Confirmed')
+                 big.mark=','))
   })
   
   output$n_deaths <- renderText({ 
     str_c(format(as.integer(sum(r_deaths()$Deaths, na.rm=T)), 
-                 big.mark=','), ' Deaths')
+                 big.mark=','))
   })
   
   output$n_recovered <- renderText({ 
     str_c(format(as.integer(sum(r_recovered()$Recovered, na.rm=T)), 
-                 big.mark=','), ' Recovered')
+                 big.mark=','))
   })
   
   output$world_map <- renderLeaflet({
     leaflet(world) %>% 
       addPolygons(weight = 1,
-                  color = '#293535',
-                  fillColor = '#4d6a66',
+                  color = '#f2f2f2',
+                  fillColor = '#cccccc',
                   fillOpacity = 1) %>% 
       setView(lng=10, lat=30, zoom=2)
   })
@@ -314,13 +371,13 @@ server <- function(input, output) {
     leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
       addPolygons(data = world,
                   weight = 1,
-                  color = '#293535',
+                  color = '#f2f2f2',
                   fillColor = '#1D2626',
                   fillOpacity = 1) %>% 
       addPolygons(data = canada,
                   weight = 1,
-                  color = '#293535',
-                  fillColor = '#4d6a66',
+                  color = '#f2f2f2',
+                  fillColor = '#cccccc',
                   fillOpacity = 1) %>%
       setView(lng=-100, lat=60, zoom=3) %>% 
       setMaxBounds(lng1=-130, lng2=-70, lat1=30, lat2=90)
@@ -330,13 +387,13 @@ server <- function(input, output) {
     leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
       addPolygons(data = world,
                   weight = 1,
-                  color = '#293535',
+                  color = '#f2f2f2',
                   fillColor = '#1D2626',
                   fillOpacity = 1) %>% 
       addPolygons(data = usa,
                   weight = 1,
-                  color = '#293535',
-                  fillColor = '#4d6a66',
+                  color = '#f2f2f2',
+                  fillColor = '#cccccc',
                   fillOpacity = 1) %>% 
       setView(lng=-170, lat=50, zoom=3) %>% 
       setMaxBounds(lng1=-170, lng2=-40, lat1=10, lat2=70)
