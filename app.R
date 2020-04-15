@@ -107,6 +107,35 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
       ),
       column(1)
     )
+  )
+)
+
+# COVID_df <- confirmed_df %>% 
+#   left_join(deaths_df %>% select(Lat, Long, Date, Deaths, Deaths.Sqrt), 
+#             by=c('Lat','Long','Date')) %>% 
+#   left_join(recovered_df %>% select(Lat, Long, Date, Recovered, Recovered.Sqrt), 
+#             by=c('Lat','Long','Date')) %>% 
+#   distinct()
+# 
+# COVID_df[duplicated(COVID_df %>% select(Lat, Long, Date)),]
+
+# ----
+
+ui <- fluidPage(
+  
+  # background color
+  setBackgroundColor(
+    color = "#1A1A1A"
+  ),
+  
+  # text styling and background color for map
+  tags$head(
+    tags$style(
+      'body {
+        color:#fffacd;
+        font-family:Verdana;}',
+      HTML(".leaflet-container { background: #293535; }")
+    )
   ),
     
   # second tab of the layout, economy data and chart

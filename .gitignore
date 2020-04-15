@@ -2,3 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+.ipynb_checkpoints/*
+archived/*
+debug.log
+geckodriver.log
