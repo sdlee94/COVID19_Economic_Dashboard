@@ -8,77 +8,11 @@ library(rworldmap)
 library(httr)
 
 # COVID DATA ----
-parent_url = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/'
 
-# urls for csv files
-confirmed_url = str_c(parent_url,'time_series_covid19_confirmed_global.csv')
-confirmed_us_url = str_c(parent_url,'time_series_covid19_confirmed_US.csv')
+confirmed_df <- readRDS('data/confirmed_df.rds')
+deaths_df <- readRDS('data/deaths_df.rds')
+recovered_df <- readRDS('data/recovered_df.rds')
 
-deaths_url = str_c(parent_url,'time_series_covid19_deaths_global.csv')
-deaths_us_url = str_c(parent_url,'time_series_covid19_deaths_US.csv')
-
-recovered_url = str_c(parent_url,'time_series_covid19_recovered_global.csv')
-# recovered data from US not available
-
-#a <- read.csv('data/BCPI_WEEKLY-sd-1972-01-01.csv')
-
-# a <- confirmed_df %>% filter(Country.Region=='US')
-# b <- recovered_df %>% filter(Country.Region=='US')
-# c <- deaths_df %>% filter(Country.Region=='US')
-# 
-# check <- full_join(a, b, by=c('Date'))
-
-# fx to convert wide to long format
-# wide_to_long <- function(wide_df){
-#   long_df <- wide_df %>% 
-#     gather(Date, Cases, ends_with('0')) %>%
-#     mutate(Date = Date %>%
-#              as.Date(format='%m/%d/%y'))
-#   return(long_df)
-# }
-
-wide_to_long <- function(wide_df){
-  long_df <- wide_df %>% 
-    gather(Date, Cases, starts_with('x')) %>% 
-    mutate(Date = Date %>% 
-             str_replace('X', '0') %>%
-             str_replace_all('\\.', '-') %>% 
-             as.Date(format='%m-%d-%y'))
-  return(long_df)
-}
-
-confirmed_us_df <- read.csv(confirmed_us_url) %>%
-  wide_to_long() %>%
-  filter(Cases>0) %>% 
-  select(Province.State = Province_State, Country.Region = Country_Region, 
-         Lat, Long = Long_, Date, Confirmed = Cases)
-
-deaths_us_df <- read.csv(deaths_us_url) %>%
-  wide_to_long() %>%
-  filter(Cases>0) %>% 
-  select(Province.State = Province_State, Country.Region = Country_Region, 
-         Lat, Long = Long_, Date, Deaths = Cases)
-
-confirmed_df <- read.csv(confirmed_url) %>% 
-  wide_to_long() %>% 
-  rename(Confirmed = Cases) %>%
-  filter(Country.Region != 'US', Confirmed>0) %>% 
-  rbind(confirmed_us_df) %>% 
-  mutate(Confirmed.Sqrt = sqrt(Confirmed))
-
-deaths_df <- read.csv(deaths_url) %>% 
-  wide_to_long() %>% 
-  rename(Deaths = Cases) %>%
-  filter(Country.Region != 'US', Deaths>0) %>% 
-  rbind(deaths_us_df) %>%
-  mutate(Deaths.Sqrt = sqrt(Deaths))
-
-# recovered data is reported by country
-recovered_df <- read.csv(recovered_url) %>% 
-  wide_to_long() %>% 
-  rename(Recovered = Cases) %>%
-  filter(Recovered>0) %>% 
-  mutate(Recovered.Sqrt = sqrt(Recovered))
 # ----
 
 # STOCKS DATA ----
@@ -132,9 +66,6 @@ my_theme <- theme(
 #   distinct()
 # 
 # COVID_df[duplicated(COVID_df %>% select(Lat, Long, Date)),]
-# 
-# corp_debt_spdf <- read.csv('data/corp_debt.csv') %>% 
-#   joinCountryData2Map(joinCode = "ISO3", nameJoinColumn = "LOCATION")
 
 # spatial dataframe of the world
 world <- getMap(resolution = 'low')
@@ -144,20 +75,7 @@ usa <- rgdal::readOGR('data/USA_20m.json')
 
 # https://thomson.carto.com/tables/canada_provinces/public/map
 canada <- rgdal::readOGR('data/canada_provinces.geojson')
-
 # ----
-
-# leaflet() %>% #addTiles() %>%
-#   addPolygons(data = world,
-#               weight = 1,
-#               color = '#293535',
-#               fillColor = '#1D2626',
-#               fillOpacity = 1) %>% 
-#   addPolygons(data = usa,
-#               weight = 1,
-#               color = '#293535',
-#               fillColor = '#4d6a66',
-#               fillOpacity = 1)
 
 ui <- fluidPage(
   
