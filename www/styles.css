@@ -1,28 +1,142 @@
 body {
-  color: #fffacd;
   font-family: Verdana;
-  background-color: #1A1A1A;
+}
+
+.navbar {
+  background-color: #ffffff;
+  border-color: transparent;
+  color: #000000;
+}
+.navbar-header span {
+  color: #000000;
+}
+.nav {
+  margin-left: 60px;
+  
+}
+.navbar li {
+  border-bottom: 1px solid #000000;
+  color: #000000;
+}
+.active {
+  background-color: #ffffff;
+  font-weight: bold;
+}
+.active a {
+  background-color: #ffffff;
+}
+.sidebar-container {
+  margin-bottom: 38px;
+}
+.sidebar-title {
+  border-bottom: 2px solid #000000;
+}
+.sidebar-title h4 {
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 16px;
+}
+.sidebar-percentage {
+  color: #5dd498;
+}
+.sidebar-date {
+  font-size: 8px;
+}
+.form-group {
+  margin: 0;
+}
+.map-select {
+  display: flex;
+  justify-content: center;
+  border-bottom: 2px solid #000000;
+  height: contain;
+  margin-bottom: 20px;
+}
+.selectize-control {
+  margin: 0;
+  height: 35.5px;
+}
+.item {
+  font-weight: bold;
+}
+.selectize-input {
+  border-color: transparent;
 }
 .leaflet-container {
-  background: #293535;
+  background: #f2f2f2;
+}
+.control-label {
+  display: none;
 }
 .irs {
-        margin-top: 25px;
+  margin-top: 40px;
+  position: relative;
+}
+.irs-line {
+  border-color: transparent;
+  background-color: #000000;
+  height: .5px;
+}
+.irs-bar {
+  border-color: transparent;
+  background-color: transparent;
+  height: 1px;
+}
+.irs-bar-edge {
+  border-color: transparent;
+  background-color: transparent;
+  height: 1px;
+}
+.irs-grid {
+  position: relative;
+  top: -20px;
 }
 .irs-grid-pol {
-        background-color: #fffacd;
+  background-color: #000000;
+  height: 5px;
+  width: 1px;
 }
 .irs-grid-pol.small {
   display: none;
 }
 .irs-grid-text {
-        display: none;
+  display: none;
 }
 .irs-single {
-        color: #fffacd;
-        font-size: 18px;
-        background-color: #1a1a1a;
-        top: -20px;
-        display: flex;
-        flex-wrap: wrap;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: bold;
+  background-color: #000000;
+  top: -20px;
+}
+.irs-slider {
+  width: 2px;
+  height: 17px;
+  border-color: transparent;
+  background-color: #000000;
+  box-shadow: none;
+  position: relative;
+  top: -58px;
+}
+.irs-shadow {
+  display: none;
+}
+.irs-min, .irs-max {
+  background-color: transparent;
+  color: #000000;
+  position: absolute;
+  visibility: visible;
+  top: 35px;
+}
+.slider-animate-container {
+  margin-top: 20px;
+}
+.play {
+  border: 1px solid #000000;
+  height: 30px;
+  padding: 4px;
+}
+.glyphicon-play {
+  color: #000000;
+  height: 25px;
 }
