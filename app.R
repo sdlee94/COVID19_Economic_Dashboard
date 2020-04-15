@@ -15,6 +15,11 @@ recovered_df <- readRDS('data/recovered_df.rds')
 
 # ----
 
+# import maps
+world <- readRDS('data/world_map.rds')
+usa <- readRDS('data/usa_map.rds')
+canada <- readRDS('data/canada_map.rds')
+
 # STOCKS DATA ----
 eco_url = 'http://finmindapi.servebeer.com/api/data'
 
@@ -67,14 +72,6 @@ my_theme <- theme(
 # 
 # COVID_df[duplicated(COVID_df %>% select(Lat, Long, Date)),]
 
-# spatial dataframe of the world
-world <- getMap(resolution = 'low')
-
-# https://eric.clst.org/tech/usgeojson/
-usa <- rgdal::readOGR('data/USA_20m.json')
-
-# https://thomson.carto.com/tables/canada_provinces/public/map
-canada <- rgdal::readOGR('data/canada_provinces.geojson')
 # ----
 
 ui <- fluidPage(

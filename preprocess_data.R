@@ -1,5 +1,7 @@
 library(tidyverse)
 
+# COVID DATA ----
+
 # parent url to github repo with Covid Data (collected by John Hopkins University)
 parent_url = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/'
 
@@ -57,11 +59,28 @@ recovered_df <- read.csv(recovered_url) %>%
   filter(Recovered>0) %>% 
   mutate(Recovered.Sqrt = sqrt(Recovered))
 
-# save covid data as csv files
-write_csv(confirmed_df, 'data/confirmed_df.csv')
-write_csv(deaths_df, 'data/deaths_df.csv')
-write_csv(recovered_df, 'data/recovered_df.csv')
-
+# save covid data as rds files
 saveRDS(confirmed_df, 'data/confirmed_df.rds')
 saveRDS(deaths_df, 'data/deaths_df.rds')
 saveRDS(recovered_df, 'data/recovered_df.rds')
+
+# ----
+
+# spatial dataframe of the world
+if(!file.exists('data/world_map.rds')){
+  world <- getMap(resolution = 'low')
+  saveRDS(world, 'data/world_map.rds')
+}
+
+# https://eric.clst.org/tech/usgeojson/
+if(!file.exists('data/usa_map.rds')){
+  usa <- rgdal::readOGR('data/USA_20m.json')
+  saveRDS(usa, 'data/usa_map.rds')
+}
+
+# https://thomson.carto.com/tables/canada_provinces/public/map
+if(!file.exists('data/canada_map.rds')){
+  canada <- rgdal::readOGR('data/canada_provinces.geojson')
+  saveRDS(canada, 'data/canada_map.rds')
+}
+
