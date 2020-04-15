@@ -1,18 +1,14 @@
 # load packages
 library(tidyverse)
-library(data.table)
 library(shiny)
 library(shinyWidgets)
 library(leaflet)
 library(rworldmap)
-library(httr)
 
 # COVID DATA ----
-
 confirmed_df <- readRDS('data/confirmed_df.rds')
 deaths_df <- readRDS('data/deaths_df.rds')
 recovered_df <- readRDS('data/recovered_df.rds')
-
 # ----
 
 # import maps
@@ -20,33 +16,8 @@ world <- readRDS('data/world_map.rds')
 usa <- readRDS('data/usa_map.rds')
 canada <- readRDS('data/canada_map.rds')
 
-# STOCKS DATA ----
-eco_url = 'http://finmindapi.servebeer.com/api/data'
-
-# Fx to obtain stock time series data
-get_stock_data <- function(stock_id){
-  payload <- list('dataset' = 'USStockPrice',
-                  'stock_id' = stock_id,
-                  'date'='2020-01-22')
-  response <- POST(eco_url, body = payload, encode = "form")
-  print(stock_id)
-  data <- response %>% content
-  
-  df <- do.call('cbind', data$data) %>% 
-    data.table %>% 
-    unnest(cols = colnames(.))
-  
-  return(df)
-}
-
-# Run if data/stock_data.csv does not exist
-# stock_data <- c('^GSPC', '^DJI', '^IXIC') %>% 
-#   map(get_stock_data) %>% 
-#   bind_rows()
-# write_csv(stock_data, 'data/stock_data.csv')
-
-stock_data <- read.csv('data/stock_data.csv', stringsAsFactors = F) %>% 
-  mutate(date = as.Date(date))
+# import stock data
+stock_data <- readRDS('data/stock_data.rds')
 # ----
 
 # ggplot Aesthetics ----

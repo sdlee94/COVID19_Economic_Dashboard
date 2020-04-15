@@ -1,4 +1,6 @@
 library(tidyverse)
+library(data.table)
+library(httr)
 
 # COVID DATA ----
 
@@ -84,3 +86,28 @@ if(!file.exists('data/canada_map.rds')){
   saveRDS(canada, 'data/canada_map.rds')
 }
 
+# STOCKS DATA ----
+eco_url = 'http://finmindapi.servebeer.com/api/data'
+
+# Fx to obtain stock time series data
+get_stock_data <- function(stock_id){
+  payload <- list('dataset' = 'USStockPrice',
+                  'stock_id' = stock_id,
+                  'date'='2020-01-22')
+  response <- POST(eco_url, body = payload, encode = "form")
+  print(stock_id)
+  data <- response %>% content
+  
+  df <- do.call('cbind', data$data) %>% 
+    data.table %>% 
+    unnest(cols = colnames(.))
+  
+  return(df)
+}
+
+stock_data <- c('^GSPC', '^DJI', '^IXIC') %>%
+  map(get_stock_data) %>%
+  bind_rows() %>% 
+  mutate(date = as.Date(date))
+saveRDS(stock_data, 'data/stock_data.rds')
+# ----
