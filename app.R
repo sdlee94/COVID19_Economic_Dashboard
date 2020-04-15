@@ -1,113 +1,22 @@
 # load packages
 library(tidyverse)
-library(data.table)
 library(shiny)
 library(shinyWidgets)
 library(leaflet)
 library(rworldmap)
-library(httr)
 
 # COVID DATA ----
-parent_url = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/'
+confirmed_df <- readRDS('data/confirmed_df.rds')
+deaths_df <- readRDS('data/deaths_df.rds')
+recovered_df <- readRDS('data/recovered_df.rds')
 
-# urls for csv files
-confirmed_url = str_c(parent_url,'time_series_covid19_confirmed_global.csv')
-confirmed_us_url = str_c(parent_url,'time_series_covid19_confirmed_US.csv')
+# import maps
+world <- readRDS('data/world_map.rds')
+usa <- readRDS('data/usa_map.rds')
+canada <- readRDS('data/canada_map.rds')
 
-deaths_url = str_c(parent_url,'time_series_covid19_deaths_global.csv')
-deaths_us_url = str_c(parent_url,'time_series_covid19_deaths_US.csv')
-
-recovered_url = str_c(parent_url,'time_series_covid19_recovered_global.csv')
-# recovered data from US not available
-
-#a <- read.csv('data/BCPI_WEEKLY-sd-1972-01-01.csv')
-
-# a <- confirmed_df %>% filter(Country.Region=='US')
-# b <- recovered_df %>% filter(Country.Region=='US')
-# c <- deaths_df %>% filter(Country.Region=='US')
-# 
-# check <- full_join(a, b, by=c('Date'))
-
-# fx to convert wide to long format
-# wide_to_long <- function(wide_df){
-#   long_df <- wide_df %>% 
-#     gather(Date, Cases, ends_with('0')) %>%
-#     mutate(Date = Date %>%
-#              as.Date(format='%m/%d/%y'))
-#   return(long_df)
-# }
-
-wide_to_long <- function(wide_df){
-  long_df <- wide_df %>% 
-    gather(Date, Cases, starts_with('x')) %>% 
-    mutate(Date = Date %>% 
-             str_replace('X', '0') %>%
-             str_replace_all('\\.', '-') %>% 
-             as.Date(format='%m-%d-%y'))
-  return(long_df)
-}
-
-confirmed_us_df <- read.csv(confirmed_us_url) %>%
-  wide_to_long() %>%
-  filter(Cases>0) %>% 
-  select(Province.State = Province_State, Country.Region = Country_Region, 
-         Lat, Long = Long_, Date, Confirmed = Cases)
-
-deaths_us_df <- read.csv(deaths_us_url) %>%
-  wide_to_long() %>%
-  filter(Cases>0) %>% 
-  select(Province.State = Province_State, Country.Region = Country_Region, 
-         Lat, Long = Long_, Date, Deaths = Cases)
-
-confirmed_df <- read.csv(confirmed_url) %>% 
-  wide_to_long() %>% 
-  rename(Confirmed = Cases) %>%
-  filter(Country.Region != 'US', Confirmed>0) %>% 
-  rbind(confirmed_us_df) %>% 
-  mutate(Confirmed.Sqrt = sqrt(Confirmed))
-
-deaths_df <- read.csv(deaths_url) %>% 
-  wide_to_long() %>% 
-  rename(Deaths = Cases) %>%
-  filter(Country.Region != 'US', Deaths>0) %>% 
-  rbind(deaths_us_df) %>%
-  mutate(Deaths.Sqrt = sqrt(Deaths))
-
-# recovered data is reported by country
-recovered_df <- read.csv(recovered_url) %>% 
-  wide_to_long() %>% 
-  rename(Recovered = Cases) %>%
-  filter(Recovered>0) %>% 
-  mutate(Recovered.Sqrt = sqrt(Recovered))
-# ----
-
-# STOCKS DATA ----
-eco_url = 'http://finmindapi.servebeer.com/api/data'
-
-# Fx to obtain stock time series data
-get_stock_data <- function(stock_id){
-  payload <- list('dataset' = 'USStockPrice',
-                  'stock_id' = stock_id,
-                  'date'='2020-01-22')
-  response <- POST(eco_url, body = payload, encode = "form")
-  print(stock_id)
-  data <- response %>% content
-  
-  df <- do.call('cbind', data$data) %>% 
-    data.table %>% 
-    unnest(cols = colnames(.))
-  
-  return(df)
-}
-
-# Run if data/stock_data.csv does not exist
-# stock_data <- c('^GSPC', '^DJI', '^IXIC') %>% 
-#   map(get_stock_data) %>% 
-#   bind_rows()
-# write_csv(stock_data, 'data/stock_data.csv')
-
-stock_data <- read.csv('data/stock_data.csv', stringsAsFactors = F) %>% 
-  mutate(date = as.Date(date))
+# import stock data
+stock_data <- readRDS('data/stock_data.rds')
 # ----
 
 # ggplot Aesthetics ----
@@ -123,42 +32,6 @@ my_theme <- theme(
   legend.background = element_rect(fill = '#4d6a66', color = '#4d6a66')
 )
 # ----
-
-# COVID_df <- confirmed_df %>% 
-#   left_join(deaths_df %>% select(Lat, Long, Date, Deaths, Deaths.Sqrt), 
-#             by=c('Lat','Long','Date')) %>% 
-#   left_join(recovered_df %>% select(Lat, Long, Date, Recovered, Recovered.Sqrt), 
-#             by=c('Lat','Long','Date')) %>% 
-#   distinct()
-# 
-# COVID_df[duplicated(COVID_df %>% select(Lat, Long, Date)),]
-# 
-# corp_debt_spdf <- read.csv('data/corp_debt.csv') %>% 
-#   joinCountryData2Map(joinCode = "ISO3", nameJoinColumn = "LOCATION")
-
-# spatial dataframe of the world
-world <- getMap(resolution = 'low')
-
-# https://eric.clst.org/tech/usgeojson/
-usa <- rgdal::readOGR('data/USA_20m.json')
-
-# https://thomson.carto.com/tables/canada_provinces/public/map
-canada <- rgdal::readOGR('data/canada_provinces.geojson')
-
-# ----
-
-# leaflet() %>% #addTiles() %>%
-#   addPolygons(data = world,
-#               weight = 1,
-#               color = '#293535',
-#               fillColor = '#1D2626',
-#               fillOpacity = 1) %>% 
-#   addPolygons(data = usa,
-#               weight = 1,
-#               color = '#293535',
-#               fillColor = '#4d6a66',
-#               fillOpacity = 1)
-
 
 # new page layout with tabs at the top
 
