@@ -1,6 +1,7 @@
 library(tidyverse)
 library(data.table)
 library(httr)
+library(rvest)
 
 # COVID DATA ----
 
@@ -19,9 +20,22 @@ recovered_url = str_c(parent_url,'time_series_covid19_recovered_global.csv')
 
 # fx to convert wide to long format
 wide_to_long <- function(wide_df){
+  if('Country_Region' %in% colnames(wide_df)){
+    wide_df <- wide_df %>% rename(Country.Region = Country_Region)
+  }
+  
   long_df <- wide_df %>%
     gather(Date, Cases, starts_with('x')) %>%
-    mutate(Date = Date %>%
+    mutate(Country.Region = case_when(Country.Region=='Korea, South'~'South Korea',
+                                      Country.Region=='Taiwan*'~'Taiwan',
+                                      Country.Region=='US'~'United States',
+                                      Country.Region=='Saint Kitts and Nevis'~'Saint Kitts & Nevis',
+                                      Country.Region=='Sao Tome and Principe'~'Sao Tome & Principe',
+                                      Country.Region=='Congo (Brazzaville)'~'Congo',
+                                      Country.Region=='Congo (Kinshasa)'~'DR Congo',
+                                      Country.Region=='Czechia'~'Czech Republic (Czechia)',
+                                      TRUE~as.character(Country.Region)),
+           Date = Date %>%
              str_replace('X', '0') %>%
              str_replace_all('\\.', '-') %>%
              as.Date(format='%m-%d-%y'))
@@ -31,43 +45,102 @@ wide_to_long <- function(wide_df){
 confirmed_us_df <- read.csv(confirmed_us_url) %>%
   wide_to_long() %>%
   filter(Cases>0) %>% 
-  select(Province.State = Province_State, Country.Region = Country_Region, 
-         Lat, Long = Long_, Date, Confirmed = Cases)
+  select(Province.State = Province_State, Country.Region,
+         Lat, Long = Long_, Date, Cases)
 
 deaths_us_df <- read.csv(deaths_us_url) %>%
   wide_to_long() %>%
   filter(Cases>0) %>% 
-  select(Province.State = Province_State, Country.Region = Country_Region, 
-         Lat, Long = Long_, Date, Deaths = Cases)
+  select(Province.State = Province_State, Country.Region,
+         Lat, Long = Long_, Date, Cases)
+
+cases_by_pop <- function(df){
+  by_pop_df <- df %>%
+    left_join(population_df) %>% 
+    mutate(Cases_per_100k = round(Cases / (Population / 1e5), 2))
+  
+  return(by_pop_df)
+}
 
 confirmed_df <- read.csv(confirmed_url) %>% 
   wide_to_long() %>% 
-  rename(Confirmed = Cases) %>%
-  filter(Country.Region != 'US', Confirmed>0) %>% 
+  filter(Country.Region != 'United States', Cases>0) %>% 
   rbind(confirmed_us_df) %>% 
-  mutate(Confirmed.Sqrt = sqrt(Confirmed))
-
+  mutate(Cases.Sqrt = round(sqrt(Cases), 2))
+  
 deaths_df <- read.csv(deaths_url) %>% 
   wide_to_long() %>% 
-  rename(Deaths = Cases) %>%
-  filter(Country.Region != 'US', Deaths>0) %>% 
-  rbind(deaths_us_df) %>%
-  mutate(Deaths.Sqrt = sqrt(Deaths))
+  filter(Country.Region != 'United States', Cases>0) %>% 
+  rbind(deaths_us_df) %>% 
+  mutate(Cases.Sqrt = round(sqrt(Cases), 2))
 
 # recovered data is reported by country
 recovered_df <- read.csv(recovered_url) %>% 
-  wide_to_long() %>% 
-  rename(Recovered = Cases) %>%
-  filter(Recovered>0) %>% 
-  mutate(Recovered.Sqrt = sqrt(Recovered))
+  wide_to_long() %>%
+  filter(Cases>0) %>% 
+  mutate(Cases.Sqrt = round(sqrt(Cases), 2))
 
 # save covid data as rds files
 saveRDS(confirmed_df, 'data/confirmed_df.rds')
 saveRDS(deaths_df, 'data/deaths_df.rds')
 saveRDS(recovered_df, 'data/recovered_df.rds')
 
+
+# population by country in 2020
+url <- 'https://www.worldometers.info/world-population/population-by-country/'
+
+population <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@id="example2"]') %>%
+  html_table()
+
+population_df <- as.data.frame(population[[1]]) %>% 
+  select(Country.Region = `Country (or dependency)`, Population = `Population (2020)`) %>% 
+  mutate(Population = Population %>% 
+           str_replace_all(',', '') %>% 
+           as.integer())
+
+population_df <- read.csv('data/pop.csv', skip=3)
+
+cumulative_df <- confirmed_df %>% 
+  group_by(Country.Region)
+
 # ----
 
+get_pc_diff <- function(region = 'Worldwide', df) {
+  current_day <- max(confirmed_df$Date)
+  previous_day <- current_day - 1
+  
+  if(region=='Worldwide'){
+    total_current <- sum(df[df$Date==current_day,]$Cases)
+    total_previous <- sum(df[df$Date==previous_day,]$Cases)
+  } else {
+    total_current <- sum(df[df$Date==current_day & df$Country.Region==region,]$Cases)
+    total_previous <- sum(df[df$Date==previous_day & df$Country.Region==region,]$Cases)
+  }
+
+  percent_diff <- round((total_current - total_previous)/total_previous*100, 2)
+  return(percent_diff)
+}
+
+regions <- c('Worldwide', 'Canada', 'United States')
+
+pc_diff_df <- data.frame(region = regions,
+                         confirmed = (regions %>% map(get_pc_diff, confirmed_df) %>% unlist()),
+                         deaths = (regions %>% map(get_pc_diff, deaths_df) %>% unlist()),
+                         recovered = (regions %>% map(get_pc_diff, recovered_df) %>% unlist()))
+saveRDS(pc_diff_df, 'data/pc_diff_df.rds')
+
+
+confirmed_by_country_df <- confirmed_df %>% 
+  group_by(Country.Region, Date) %>% 
+  summarize(Cases = sum(Cases)) %>% 
+  mutate(diff = round((Cases - lag(Cases)) / lag(Cases) * 100, 2),
+         diff = if_else(is.na(diff), 0, diff))
+            
+  
+
+# MAPS ----
 # spatial dataframe of the world
 if(!file.exists('data/world_map.rds')){
   world <- getMap(resolution = 'low')
@@ -85,6 +158,7 @@ if(!file.exists('data/canada_map.rds')){
   canada <- rgdal::readOGR('data/canada_provinces.geojson')
   saveRDS(canada, 'data/canada_map.rds')
 }
+# ----
 
 # STOCKS DATA ----
 eco_url = 'http://finmindapi.servebeer.com/api/data'

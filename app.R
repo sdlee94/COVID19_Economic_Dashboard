@@ -19,6 +19,11 @@ canada <- readRDS('data/canada_map.rds')
 stock_data <- readRDS('data/stock_data.rds')
 # ----
 
+# % differences from previous day ----
+pc_diff_df <- readRDS('data/pc_diff_df.rds')
+
+# ----
+
 # ggplot Aesthetics ----
 my_theme <- theme(
   plot.background = element_rect(fill = '#293535', color = '#293535'),
@@ -34,57 +39,63 @@ my_theme <- theme(
 # ----
 
 # new page layout with tabs at the top
-
 ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
                  
-
   # first tab of the layout, recorded cases and world map
   tabPanel("Recorded Cases", 
-           
+          
     fluidRow(
       column(1),
-      column(3,
-        tags$div(class = "sidebar-container",
+      column(2,
+        tags$head(tags$style('#diff * {display:inline;}')),
+        tags$div(
+          class = "sidebar-container",
           tags$div(class = "sidebar-title",
-            h4("Confirmed Cases")
+                   h4("Confirmed Cases")
           ),
           span(h3(textOutput("n_confirmed")), style='color:#d4af37'),
-          tags$p(class = "sidebar-percentage", "##%"),
+          div(id='diff', h4(textOutput("confirmed_diff"), "↑"), style='color:green')
+          #span(h4(textOutput("confirmed_diff"), style='display:inline'), "↑",  style='color:green')
+          #tags$p(class = "sidebar-percentage", "##%")
         ),
-        tags$div(class = "sidebar-container",
+        tags$div(
+          class = "sidebar-container",
           tags$div(class = "sidebar-title", 
-            h4("Recovered") 
-          ),
+                   h4("Recovered") 
+            ),
           span(h3(textOutput("n_recovered")), style='color:#79cdcd'),
-          tags$p(class = "sidebar-percentage", "##%"),
+          div(id='diff', h4(textOutput("deaths_diff"), "↑"), style='color:green')
+          #tags$p(class = "sidebar-percentage", "##%")
         ),
-        tags$div(class = "sidebar-container", 
+          tags$div(class = "sidebar-container", 
           tags$div(class = "sidebar-title", 
-            h4("Deaths") 
+                   h4("Deaths") 
           ),
           span(h3(textOutput("n_deaths")), style='color:#cd5555'),
-          tags$p(class = "sidebar-percentage", "##%"),
+          div(id='diff', h4(textOutput("recovered_diff"), "↑"), style='color:green')
+          #tags$p(class = "sidebar-percentage", "##%")
         ),
         tags$footer(class = "sidebar-date-container", 
           tags$p(class = "sidebar-date", textOutput("show_date"))
         )
       ),
-      column(7,
+      column(8,
         tags$div(class = "map-select", 
-          selectInput('map_view', label = NULL, choices = c('Worldwide', 'Canada', 'USA'), width = "30%"),
+          selectInput('map_view', label = NULL, 
+                      choices = c('Worldwide', 'Canada', 'United States'), width = "30%")
         ),
         conditionalPanel(
           condition = "input.map_view == 'Worldwide'",
-          leafletOutput("world_map")
+          leafletOutput("world_map", height = 600)
         ), 
         conditionalPanel(
           condition = "input.map_view == 'Canada'",
-          leafletOutput("canada_map")
+          leafletOutput("canada_map", height = 600)
         ),
         conditionalPanel(
-          condition = "input.map_view == 'USA'",
-          leafletOutput("usa_map")
-        ),     
+          condition = "input.map_view == 'United States'",
+          leafletOutput("usa_map", height = 600)
+        )
       ),
       column(1)
     ),
@@ -94,50 +105,21 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
       column(1),
       column(10, 
         tags$div(
-            sliderInput("date",
-               label = ("Date"),
-               min = min(confirmed_df$Date),
-               max = max(confirmed_df$Date),
-               value = max(confirmed_df$Date),
-               animate = animationOptions(interval=600, loop=F),
-               timeFormat = "%d %b",
-               width = "100%"
-             )
-         )
+          sliderInput("date",
+                     label = ("Date"),
+                     min = min(confirmed_df$Date),
+                     max = max(confirmed_df$Date),
+                     value = max(confirmed_df$Date),
+                     animate = animationOptions(interval=600, loop=F),
+                     timeFormat = "%d %b",
+                     width = "100%"
+          )
+        )
       ),
       column(1)
     )
-  )
-)
-
-# COVID_df <- confirmed_df %>% 
-#   left_join(deaths_df %>% select(Lat, Long, Date, Deaths, Deaths.Sqrt), 
-#             by=c('Lat','Long','Date')) %>% 
-#   left_join(recovered_df %>% select(Lat, Long, Date, Recovered, Recovered.Sqrt), 
-#             by=c('Lat','Long','Date')) %>% 
-#   distinct()
-# 
-# COVID_df[duplicated(COVID_df %>% select(Lat, Long, Date)),]
-
-# ----
-
-ui <- fluidPage(
-  
-  # background color
-  setBackgroundColor(
-    color = "#1A1A1A"
   ),
   
-  # text styling and background color for map
-  tags$head(
-    tags$style(
-      'body {
-        color:#fffacd;
-        font-family:Verdana;}',
-      HTML(".leaflet-container { background: #293535; }")
-    )
-  ),
-    
   # second tab of the layout, economy data and chart
   tabPanel("Economy", 
     fluidRow(
@@ -147,8 +129,8 @@ ui <- fluidPage(
         span(h3("GSPC"), style='color:#000000'),
         span(h3("IXIC"), style='color:#000000')
       ),
-      column(
-        7,plotOutput('coolplot')
+      column(7,
+        plotOutput('stock_plot')
       ),
       column(1)
     )
@@ -156,58 +138,19 @@ ui <- fluidPage(
   
   # third tab of the layout, placeholder for commodities data
   tabPanel("Commodities", 
-     fluidRow(
-       column(1),
-       column(3,
-         span(h3("Natural Gas"), style='color:#d4af37'),
-         span(h3("Gold"), style='color:#79cdcd'),
-         span(h3("Cotton"), style='color:#cd5555')
-       ),
-       column(
-           7, "placeholder"
-       )
-     )
+    fluidRow(
+      column(1),
+      column(3,
+        span(h3("Natural Gas"), style='color:#d4af37'),
+        span(h3("Gold"), style='color:#79cdcd'),
+        span(h3("Cotton"), style='color:#cd5555')
+      ),
+      column(
+        7, "placeholder"
+      )
+    )
   )
 )
-  
-  
-  
-  
-
-
-
-# leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
-#   addPolygons(data = world,
-#               weight = 1,
-#               color = '#293535',
-#               fillColor = '#1D2626',
-#               fillOpacity = 1) %>% 
-#   addPolygons(data = canada,
-#               weight = 1,
-#               color = '#293535',
-#               fillColor = '#4d6a66',
-#               fillOpacity = 1) %>% 
-#   setView(lng=-100, lat=60, zoom=3) %>% 
-#   setMaxBounds(lng1=-130, lng2=-70, lat1=30, lat2=90) %>% 
-#   addCircleMarkers(data = confirmed_df,
-#                    ~Long, ~Lat,
-#                    radius = ~Confirmed.Sqrt / 10,
-#                    weight = 1,
-#                    color = '#d4af37',
-#                    fillColor = '#d4af37',
-#                    fillOpacity = 0.6)
-
-# a <- confirmed_df %>% 
-#   filter(Date==max(confirmed_df$Date) & Confirmed>0)
-# 
-# str_c(format(as.integer(sum(a$Confirmed, na.rm=T)), 
-#              big.mark=','), ' Confirmed')
-# 
-# b <- deaths_df %>% 
-#   filter(Date==max(deaths_df$Date) & Deaths>0)
-# 
-# str_c(format(as.integer(sum(b$Deaths, na.rm=T)), 
-#              big.mark=','), ' Confirmed')
 
 server <- function(input, output) {
   r_confirmed <- reactive({
@@ -217,9 +160,9 @@ server <- function(input, output) {
     } else if (input$map_view == 'Canada') {
       confirmed_df %>% 
         filter(Date==input$date & Country.Region=='Canada')
-    } else if (input$map_view == 'USA') {
+    } else if (input$map_view == 'United States') {
       confirmed_df %>% 
-        filter(Date==input$date & Country.Region=='US')
+        filter(Date==input$date & Country.Region=='United States')
     }
   })
   
@@ -230,9 +173,9 @@ server <- function(input, output) {
     } else if (input$map_view == 'Canada') {
       deaths_df %>% 
         filter(Date==input$date & Country.Region=='Canada')
-    } else if (input$map_view == 'USA') {
+    } else if (input$map_view == 'United States') {
       deaths_df %>% 
-        filter(Date==input$date & Country.Region=='US')
+        filter(Date==input$date & Country.Region=='United States')
     }
   })
   
@@ -246,22 +189,36 @@ server <- function(input, output) {
   })
   
   output$n_confirmed <- renderText({ 
-    str_c(format(as.integer(sum(r_confirmed()$Confirmed, na.rm=T)), 
+    str_c(format(as.integer(sum(r_confirmed()$Cases, na.rm=T)), 
                  big.mark=','))
+  })
+  
+  output$up_arrow <- renderUI({'↑'})
+  
+  output$confirmed_diff <- renderText({
+    str_c(pc_diff_df[pc_diff_df$region==input$map_view,]$confirmed, "% ")
   })
   
   output$n_deaths <- renderText({ 
-    str_c(format(as.integer(sum(r_deaths()$Deaths, na.rm=T)), 
+    str_c(format(as.integer(sum(r_deaths()$Cases, na.rm=T)), 
                  big.mark=','))
+  })
+  
+  output$deaths_diff <- renderText({
+    str_c(pc_diff_df[pc_diff_df$region==input$map_view,]$deaths, "% ")
   })
   
   output$n_recovered <- renderText({ 
-    str_c(format(as.integer(sum(r_recovered()$Recovered, na.rm=T)), 
+    str_c(format(as.integer(sum(r_recovered()$Cases, na.rm=T)), 
                  big.mark=','))
   })
   
+  output$recovered_diff <- renderText({
+    str_c(pc_diff_df[pc_diff_df$region==input$map_view,]$recovered, "% ")
+  })
+  
   output$world_map <- renderLeaflet({
-    leaflet(world) %>% 
+    leaflet(world, height=25) %>% 
       addPolygons(weight = 1,
                   color = '#f2f2f2',
                   fillColor = '#cccccc',
@@ -270,7 +227,7 @@ server <- function(input, output) {
   })
   
   output$canada_map <- renderLeaflet({
-    leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
+    leaflet(height=25, options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
       addPolygons(data = world,
                   weight = 1,
                   color = '#f2f2f2',
@@ -308,7 +265,7 @@ server <- function(input, output) {
         addCircleMarkers(
           data = r_confirmed(),
           ~Long, ~Lat,
-          radius = ~Confirmed.Sqrt / 10,
+          radius = ~Cases.Sqrt / 10,
           weight = 1,
           color = '#d4af37',
           fillColor = '#d4af37',
@@ -317,12 +274,12 @@ server <- function(input, output) {
             '<strong>%s</strong>, %s<br/>%s Confirmed<br/>',
             r_confirmed()$Country.Region,
             r_confirmed()$Province.State,
-            format(r_confirmed()$Confirmed, big.mark=',')) %>% lapply(htmltools::HTML)
+            format(r_confirmed()$Cases, big.mark=',')) %>% lapply(htmltools::HTML)
         ) %>%
         addCircleMarkers(
           data = r_recovered(),
           ~Long, ~Lat,
-          radius = ~Recovered.Sqrt / 10,
+          radius = ~Cases.Sqrt / 10,
           weight = 1,
           color = '#79cdcd',
           fillColor = '#79cdcd',
@@ -331,7 +288,7 @@ server <- function(input, output) {
         addCircleMarkers(
           data = r_deaths(),
           ~Long, ~Lat,
-          radius = ~Deaths.Sqrt / 10,
+          radius = ~Cases.Sqrt / 10,
           weight = 1,
           color = '#cd5555',
           fillColor = '#cd5555',
@@ -343,7 +300,7 @@ server <- function(input, output) {
         addCircleMarkers(
           data = r_confirmed(),
           ~Long, ~Lat,
-          radius = ~Confirmed.Sqrt / 10,
+          radius = ~Cases.Sqrt / 10,
           weight = 1,
           color = '#d4af37',
           fillColor = '#d4af37',
@@ -352,12 +309,12 @@ server <- function(input, output) {
             '<strong>%s</strong>, %s<br/>%s Confirmed<br/>',
             r_confirmed()$Country.Region,
             r_confirmed()$Province.State,
-            format(r_confirmed()$Confirmed, big.mark=',')) %>% lapply(htmltools::HTML)
+            format(r_confirmed()$Cases, big.mark=',')) %>% lapply(htmltools::HTML)
         ) %>%
         addCircleMarkers(
           data = r_deaths(),
           ~Long, ~Lat,
-          radius = ~Deaths.Sqrt / 10,
+          radius = ~Cases.Sqrt / 10,
           weight = 1,
           color = '#cd5555',
           fillColor = '#cd5555',
@@ -374,81 +331,12 @@ server <- function(input, output) {
       update_map('world_map')
     } else if (input$map_view == 'Canada') {
       update_map('canada_map')
-    } else if (input$map_view == 'USA') {
+    } else if (input$map_view == 'United States') {
       update_map('usa_map')
     }
   })
-# 
-#   observeEvent(input$date, {
-#     leafletProxy('world_map') %>% 
-#       clearMarkers() %>%
-#       addCircleMarkers(
-#         data = r_confirmed(),
-#         ~Long, ~Lat,
-#         radius = ~Confirmed.Sqrt / 10,
-#         weight = 1,
-#         color = '#d4af37',
-#         fillColor = '#d4af37',
-#         fillOpacity = 0.6,
-#         label = sprintf(
-#           '<strong>%s</strong><br/>%d Confirmed<br/>',
-#           r_confirmed()$Country.Region, 
-#           r_confirmed()$Confirmed) %>% lapply(htmltools::HTML)
-#       ) %>%
-#       addCircleMarkers(
-#         data = r_recovered(),
-#         ~Long, ~Lat,
-#         radius = ~Recovered.Sqrt / 10,
-#         weight = 1,
-#         color = '#79cdcd',
-#         fillColor = '#79cdcd',
-#         fillOpacity = 0.5
-#       ) %>% 
-#       addCircleMarkers(
-#         data = r_deaths(),
-#         ~Long, ~Lat,
-#         radius = ~Deaths.Sqrt / 10,
-#         weight = 1,
-#         color = '#cd5555',
-#         fillColor = '#cd5555',
-#         fillOpacity = 0.7
-#       )}, {
-#     leafletProxy('canada_map') %>% 
-#       clearMarkers() %>%
-#       addCircleMarkers(
-#         data = r_confirmed(),
-#         ~Long, ~Lat,
-#         radius = ~Confirmed.Sqrt / 10,
-#         weight = 1,
-#         color = '#d4af37',
-#         fillColor = '#d4af37',
-#         fillOpacity = 0.6,
-#         label = sprintf(
-#           '<strong>%s</strong><br/>%d Confirmed<br/>',
-#           r_confirmed()$Country.Region, 
-#           r_confirmed()$Confirmed) %>% lapply(htmltools::HTML)
-#       ) %>%
-#       addCircleMarkers(
-#         data = r_recovered(),
-#         ~Long, ~Lat,
-#         radius = ~Recovered.Sqrt / 10,
-#         weight = 1,
-#         color = '#79cdcd',
-#         fillColor = '#79cdcd',
-#         fillOpacity = 0.5
-#       ) %>% 
-#       addCircleMarkers(
-#         data = r_deaths(),
-#         ~Long, ~Lat,
-#         radius = ~Deaths.Sqrt / 10,
-#         weight = 1,
-#         color = '#cd5555',
-#         fillColor = '#cd5555',
-#         fillOpacity = 0.7
-#       )
-#   })
   
-  output$coolplot <- renderPlot({
+  output$stock_plot <- renderPlot({
     ggplot(stock_data, aes(x=date, y=Close, col=stock_id)) +
       geom_line() +
       scale_color_manual(values = c('^GSPC'='gold', '^DJI'='tomato', '^IXIC'='seagreen3')) +
