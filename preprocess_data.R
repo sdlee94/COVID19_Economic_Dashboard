@@ -100,11 +100,20 @@ population_df <- as.data.frame(population[[1]]) %>%
            str_replace_all(',', '') %>% 
            as.integer())
 
-population_df <- read.csv('data/pop.csv', skip=3)
+cum_cases <- function(df, case_name){
+  new_df <- df %>% 
+    group_by(Date) %>% 
+    summarize(Total = sum(Cases)) %>% 
+    mutate(case_type = case_name)
+  
+  return(new_df)
+}
 
-cumulative_df <- confirmed_df %>% 
-  group_by(Country.Region)
-
+cumulative_df <- rbind(cum_cases(confirmed_df, 'Confirmed'),
+                       cum_cases(deaths_df, 'Deaths'),
+                       cum_cases(recovered_df, 'Recovered'))
+  
+saveRDS(cumulative_df, 'data/cumulative_df.rds')
 # ----
 
 get_pc_diff <- function(region = 'Worldwide', df) {

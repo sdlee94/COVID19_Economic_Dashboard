@@ -10,6 +10,9 @@ confirmed_df <- readRDS('data/confirmed_df.rds')
 deaths_df <- readRDS('data/deaths_df.rds')
 recovered_df <- readRDS('data/recovered_df.rds')
 
+n_confirmed <-
+
+
 # import maps
 world <- readRDS('data/world_map.rds')
 usa <- readRDS('data/usa_map.rds')
@@ -19,8 +22,11 @@ canada <- readRDS('data/canada_map.rds')
 stock_data <- readRDS('data/stock_data.rds')
 # ----
 
-# % differences from previous day ----
+# % change from previous day 
 pc_diff_df <- readRDS('data/pc_diff_df.rds')
+
+# cumulative cases
+cumulative_df <- readRDS('data/cumulative_df.rds')
 
 # ----
 
@@ -79,7 +85,7 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
           tags$p(class = "sidebar-date", textOutput("show_date"))
         )
       ),
-      column(8,
+      column(6,
         tags$div(class = "map-select", 
           selectInput('map_view', label = NULL, 
                       choices = c('Worldwide', 'Canada', 'United States'), width = "30%")
@@ -97,13 +103,15 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
           leafletOutput("usa_map", height = 600)
         )
       ),
-      column(1)
+      column(3,
+        plotOutput('cumulative_plot')
+      )
     ),
     
     # slider input
     fluidRow(
       column(1),
-      column(10, 
+      column(8, 
         tags$div(
           sliderInput("date",
                      label = ("Date"),
@@ -116,7 +124,7 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
           )
         )
       ),
-      column(1)
+      column(3)
     )
   ),
   
@@ -189,11 +197,9 @@ server <- function(input, output) {
   })
   
   output$n_confirmed <- renderText({ 
-    str_c(format(as.integer(sum(r_confirmed()$Cases, na.rm=T)), 
+    str_c(format(as.integer(sum(r_confirmed()$Cases, na.rm=T)),
                  big.mark=','))
   })
-  
-  output$up_arrow <- renderUI({'↑'})
   
   output$confirmed_diff <- renderText({
     str_c(pc_diff_df[pc_diff_df$region==input$map_view,]$confirmed, "% ")
@@ -259,67 +265,39 @@ server <- function(input, output) {
   })
   
   update_map <- function(leaflet_map) {
+    
+    # fx to add bubbles onto map
+    add_bubbles <- function(map, df, color){
+      new_map <- map %>% 
+        addCircleMarkers(
+          #show bubbles if more 10 or more cases
+          data = df %>% filter(Cases>=10),
+          ~Long, ~Lat,
+          radius = ~Cases.Sqrt / 10,
+          weight = 1,
+          color = color,
+          fillColor = color,
+          fillOpacity = 0.6
+          # label = sprintf(
+          #   '<strong>%s</strong>, %s<br/>%s Confirmed<br/>',
+          #   r_confirmed()$Country.Region,
+          #   r_confirmed()$Province.State,
+          #   format(r_confirmed()$Cases, big.mark=',')) %>% lapply(htmltools::HTML)
+        )
+      return(new_map)
+    }
+    
     if (input$map_view == 'Worldwide') {
       leafletProxy(leaflet_map) %>% 
         clearMarkers() %>%
-        addCircleMarkers(
-          data = r_confirmed(),
-          ~Long, ~Lat,
-          radius = ~Cases.Sqrt / 10,
-          weight = 1,
-          color = '#d4af37',
-          fillColor = '#d4af37',
-          fillOpacity = 0.6,
-          label = sprintf(
-            '<strong>%s</strong>, %s<br/>%s Confirmed<br/>',
-            r_confirmed()$Country.Region,
-            r_confirmed()$Province.State,
-            format(r_confirmed()$Cases, big.mark=',')) %>% lapply(htmltools::HTML)
-        ) %>%
-        addCircleMarkers(
-          data = r_recovered(),
-          ~Long, ~Lat,
-          radius = ~Cases.Sqrt / 10,
-          weight = 1,
-          color = '#79cdcd',
-          fillColor = '#79cdcd',
-          fillOpacity = 0.5
-        ) %>% 
-        addCircleMarkers(
-          data = r_deaths(),
-          ~Long, ~Lat,
-          radius = ~Cases.Sqrt / 10,
-          weight = 1,
-          color = '#cd5555',
-          fillColor = '#cd5555',
-          fillOpacity = 0.7
-        ) 
+        add_bubbles(df=r_confirmed(), color='#d4af37') %>% 
+        add_bubbles(df=r_recovered(), color='#79cdcd') %>% 
+        add_bubbles(df=r_deaths(), color='#cd5555')
     } else {
       leafletProxy(leaflet_map) %>% 
         clearMarkers() %>%
-        addCircleMarkers(
-          data = r_confirmed(),
-          ~Long, ~Lat,
-          radius = ~Cases.Sqrt / 10,
-          weight = 1,
-          color = '#d4af37',
-          fillColor = '#d4af37',
-          fillOpacity = 0.6,
-          label = sprintf(
-            '<strong>%s</strong>, %s<br/>%s Confirmed<br/>',
-            r_confirmed()$Country.Region,
-            r_confirmed()$Province.State,
-            format(r_confirmed()$Cases, big.mark=',')) %>% lapply(htmltools::HTML)
-        ) %>%
-        addCircleMarkers(
-          data = r_deaths(),
-          ~Long, ~Lat,
-          radius = ~Cases.Sqrt / 10,
-          weight = 1,
-          color = '#cd5555',
-          fillColor = '#cd5555',
-          fillOpacity = 0.7
-        ) 
+        add_bubbles(df=r_confirmed(), color='#d4af37') %>% 
+        add_bubbles(df=r_deaths(), color='#cd5555')
     }
   }
   
@@ -334,6 +312,14 @@ server <- function(input, output) {
     } else if (input$map_view == 'United States') {
       update_map('usa_map')
     }
+  })
+  
+  output$cumulative_plot <- renderPlot({
+    ggplot(cumulative_df, aes(Date, Total/1e6, col=case_type)) +
+      geom_line(size=2) +
+      labs(x=NULL, y='Reported Cases\n(millions)', col=NULL) +
+      my_theme + 
+      theme(legend.position = 'top')
   })
   
   output$stock_plot <- renderPlot({
