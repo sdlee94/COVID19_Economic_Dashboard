@@ -33,7 +33,7 @@ covid_summary_df <- readRDS('data/covid_summary_df.rds')
 # ggplot Aesthetics ----
 my_theme <- theme(
   #plot.background = element_rect(fill = '#293535', color = '#293535'),
-  plot.margin = unit(c(1.5,1.5,1.5,1.5), 'cm'),
+  plot.margin = unit(c(1,1,1,1), 'cm'),
   plot.title = element_text(size = 20, face = 'bold', hjust = 0.5),
   panel.background = element_rect(fill = 'white'),
   panel.grid.major = element_line(linetype = 'dashed', color = 'gainsboro'),
@@ -41,7 +41,8 @@ my_theme <- theme(
   text = element_text(size = 18),
   axis.line = element_line(colour = 'black'),
   axis.text = element_text(size = 18),
-  axis.title.y = element_text(margin = margin(t=0, r=20, b=0, l=0))
+  axis.title.y = element_text(margin = margin(t=0, r=20, b=0, l=0)),
+  axis.title.x = element_text(margin = margin(t=10, r=00, b=0, l=0))
   #legend.background = element_rect(fill = '#4d6a66', color = '#4d6a66')
 )
 # ----
@@ -51,81 +52,89 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
                  
   # first tab of the layout, recorded cases and world map
   tabPanel("Recorded Cases", 
-          
-    fluidRow(
-      column(2, style='padding-left:100px;',
-        tags$head(tags$style('#diff * {display:inline;}')),
-        tags$div(
-          class = "sidebar-container",
-          tags$div(class = "sidebar-title",
-                   h4("Confirmed Cases")
-          ),
-          span(h3(textOutput("n_confirmed")), style='color:#d4af37'),
-          div(id='diff', h4(textOutput("confirmed_diff"), "↑"), style='color:green')
-          #span(h4(textOutput("confirmed_diff"), style='display:inline'), "↑",  style='color:green')
-          #tags$p(class = "sidebar-percentage", "##%")
-        ),
-        tags$div(
-          class = "sidebar-container",
-          tags$div(class = "sidebar-title", 
-                   h4("Recovered") 
+    column(8, style='padding-left:50px;',
+      fluidRow(
+        column(3, #style='padding-left:50px;',
+          tags$head(tags$style('#diff * {display:inline;}')),
+          tags$div(
+            class = "sidebar-container",
+            tags$div(class = "sidebar-title",
+                     h4("Confirmed Cases")
             ),
-          span(h3(textOutput("n_recovered")), style='color:#79cdcd'),
-          div(id='diff', h4(textOutput("deaths_diff"), "↑"), style='color:green')
-          #tags$p(class = "sidebar-percentage", "##%")
-        ),
-          tags$div(class = "sidebar-container", 
-          tags$div(class = "sidebar-title", 
-                   h4("Deaths") 
+            span(h3(textOutput("n_confirmed")), style='color:#d4af37'),
+            div(id='diff', h4(textOutput("confirmed_diff"), "↑"), style='color:green')
+            #span(h4(textOutput("confirmed_diff"), style='display:inline'), "↑",  style='color:green')
+            #tags$p(class = "sidebar-percentage", "##%")
           ),
-          span(h3(textOutput("n_deaths")), style='color:#cd5555'),
-          div(id='diff', h4(textOutput("recovered_diff"), "↑"), style='color:green')
-          #tags$p(class = "sidebar-percentage", "##%")
+          tags$div(
+            class = "sidebar-container",
+            tags$div(class = "sidebar-title", 
+                     h4("Recovered") 
+              ),
+            span(h3(textOutput("n_recovered")), style='color:#79cdcd'),
+            div(id='diff', h4(textOutput("deaths_diff"), "↑"), style='color:green')
+            #tags$p(class = "sidebar-percentage", "##%")
+          ),
+            tags$div(class = "sidebar-container", 
+            tags$div(class = "sidebar-title", 
+                     h4("Deaths") 
+            ),
+            span(h3(textOutput("n_deaths")), style='color:#cd5555'),
+            div(id='diff', h4(textOutput("recovered_diff"), "↑"), style='color:green')
+            #tags$p(class = "sidebar-percentage", "##%")
+          ),
+          tags$footer(class = "sidebar-date-container", 
+            tags$p(class = "sidebar-date", textOutput("show_date"))
+          )
         ),
-        tags$footer(class = "sidebar-date-container", 
-          tags$p(class = "sidebar-date", textOutput("show_date"))
-        )
-      ),
-      column(6,
-        tags$div(class = "map-select", 
-          selectInput('map_view', label = NULL, 
-                      choices = c('Worldwide', 'Canada', 'United States'), width = "30%")
-        ),
-        conditionalPanel(
-          condition = "input.map_view == 'Worldwide'",
-          leafletOutput("world_map", height = 600)
-        ), 
-        conditionalPanel(
-          condition = "input.map_view == 'Canada'",
-          leafletOutput("canada_map", height = 600)
-        ),
-        conditionalPanel(
-          condition = "input.map_view == 'United States'",
-          leafletOutput("usa_map", height = 600)
-        )
-      ),
-      column(4, style='padding-right:100px;',
-        plotOutput('growth_curve'),
-        plotOutput('top10_countries')
-      )
-    ),
-    
-    # slider input
-    fluidRow(
-      column(8, style='padding-left:100px;',
-        tags$div(
-          sliderInput("date",
-                     label = ("Date"),
-                     min = min(confirmed_df$Date),
-                     max = max(confirmed_df$Date),
-                     value = max(confirmed_df$Date),
-                     animate = animationOptions(interval=600, loop=F),
-                     timeFormat = "%d %b",
-                     width = "100%"
+        column(9,
+          tags$div(class = "map-select", 
+            selectInput('map_view', label = NULL, 
+                        choices = c('Worldwide', 'Canada', 'United States'), width = "30%")
+          ),
+          conditionalPanel(
+            condition = "input.map_view == 'Worldwide'",
+            leafletOutput("world_map", height = 450)
+          ), 
+          conditionalPanel(
+            condition = "input.map_view == 'Canada'",
+            leafletOutput("canada_map", height = 450)
+          ),
+          conditionalPanel(
+            condition = "input.map_view == 'United States'",
+            leafletOutput("usa_map", height = 450)
           )
         )
       ),
-      column(3)
+      
+      # slider input
+      fluidRow(
+        column(12, 
+          tags$div(
+            sliderInput("date",
+              label = ("Date"),
+              min = min(confirmed_df$Date),
+              max = max(confirmed_df$Date),
+              value = max(confirmed_df$Date),
+              animate = animationOptions(interval=600, loop=F),
+              timeFormat = "%d %b",
+              width = "100%"
+            )
+          )
+        )
+      )
+    ),
+    column(4, style='padding-right:50px;',
+      # tabsetPanel(id='trend_tab',
+      #   tabPanel('Cumulative', plotOutput('growth_curve', height = 300)),
+      #   tabPanel('Daily Cases', plotOutput('growth_curve', height = 300))
+      # ),
+      actionButton('cumulative', 'Cumulative'),
+      actionButton('daily_cases', 'Daily Cases'),
+      # selectInput('Covid_Trend', label = NULL,
+      #             choices = c('Cumulative', 'Daily Cases'), width = "30%"),
+      plotOutput('covid_trend', height = 300),
+      plotOutput('top10_countries', height = 300)
     )
   ),
   
@@ -315,23 +324,46 @@ server <- function(input, output) {
     }
   })
   
-  output$growth_curve <- renderPlot({
-    ggplot(cumulative_df, aes(Date, Total/1e6, col=case_type)) +
-      geom_line(size=2) +
-      scale_color_manual(values = c('Confirmed'='#d4af37', 
-                                    'Deaths'='#cd5555', 
-                                    'Recovered'='#79cdcd')) +
-      labs(x=NULL, y='Reported Cases\n(Millions)', col=NULL, title='Cumulative Growth') +
-      my_theme + 
-      theme(legend.position = 'bottom')
+  observeEvent({
+    input$cumulative
+    input$map_view
+  }, {
+    output$covid_trend <- renderPlot({
+      ggplot(cumulative_df %>% filter(region==input$map_view),
+             aes(Date, Total/1e6, col=case_type)) +
+        geom_line(size=2, alpha=0.7) +
+        scale_color_manual(values = c('Confirmed'='#d4af37',
+                                      'Deaths'='#cd5555',
+                                      'Recovered'='#79cdcd')) +
+        labs(x=NULL, y='Cases\n(Millions)', col=NULL) +
+        my_theme + 
+        theme(legend.position = 'bottom')
+    })
+  }, ignoreNULL = FALSE)
+  
+  observeEvent({
+    input$daily_cases
+    input$map_view
+  }, {
+    output$covid_trend <- renderPlot({
+      ggplot(cumulative_df %>% filter(region==input$map_view),
+             aes(Date, Daily/1000, fill=case_type)) +
+        geom_col(width=0.7) +
+        scale_fill_manual(values = c('Confirmed'='#d4af37', 
+                                      'Deaths'='#cd5555', 
+                                      'Recovered'='#79cdcd')) +
+        labs(x=NULL, y='Cases\n(Thousands)', fill=NULL) +
+        my_theme + 
+        theme(legend.position = 'bottom')
+    })
   })
   
   output$top10_countries <- renderPlot({
     ggplot(covid_summary_df %>% arrange(-Cases) %>% head(10), 
-           aes(reorder(Country.Region, Cases), Cases)) +
-      geom_col(size=2) +
+           aes(reorder(Country.Region, Cases), Cases/1000)) +
+      geom_col(size=2, width=0.7) +
       coord_flip() +
-      labs(x=NULL) +
+      labs(x=NULL, y='Cases (Thousands)') +
       my_theme
   })
   

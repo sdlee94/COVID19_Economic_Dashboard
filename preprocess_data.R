@@ -101,18 +101,37 @@ population_df <- as.data.frame(population[[1]]) %>%
            as.integer())
 
 # make df of cumulative cases by Date ----
-cum_cases <- function(df, case_name){
-  new_df <- df %>% 
-    group_by(Date) %>% 
-    summarize(Total = sum(Cases)) %>% 
-    mutate(case_type = case_name)
-  
+cum_cases <- function(df, case_name, region='Worldwide'){
+  if(region=='Worldwide'){
+    new_df <- df %>% 
+      group_by(Date) %>% 
+      summarize(Total = sum(Cases)) %>% 
+      mutate(Daily = Total - lag(Total),
+             case_type = case_name,
+             region = region)
+  } else {
+    new_df <- df %>% 
+      filter(Country.Region==region) %>% 
+      group_by(Date) %>% 
+      summarize(Total = sum(Cases)) %>% 
+      mutate(Daily = Total - lag(Total),
+             case_type = case_name,
+             region = region)
+  }
+
   return(new_df)
 }
 
 cumulative_df <- rbind(cum_cases(confirmed_df, 'Confirmed'),
                        cum_cases(deaths_df, 'Deaths'),
-                       cum_cases(recovered_df, 'Recovered'))
+                       cum_cases(recovered_df, 'Recovered'),
+                       cum_cases(confirmed_df, 'Confirmed', region='United States'),
+                       cum_cases(deaths_df, 'Deaths', region='United States'),
+                       cum_cases(recovered_df, 'Recovered', region='United States'),
+                       cum_cases(confirmed_df, 'Confirmed', region='Canada'),
+                       cum_cases(deaths_df, 'Deaths', region='Canada'),
+                       cum_cases(recovered_df, 'Recovered', region='Canada')) %>% 
+  mutate(case_type = factor(case_type, levels=c('Confirmed', 'Recovered', 'Deaths')))
   
 saveRDS(cumulative_df, 'data/cumulative_df.rds')
 # ----
