@@ -10,9 +10,6 @@ confirmed_df <- readRDS('data/confirmed_df.rds')
 deaths_df <- readRDS('data/deaths_df.rds')
 recovered_df <- readRDS('data/recovered_df.rds')
 
-n_confirmed <-
-
-
 # import maps
 world <- readRDS('data/world_map.rds')
 usa <- readRDS('data/usa_map.rds')
@@ -28,19 +25,24 @@ pc_diff_df <- readRDS('data/pc_diff_df.rds')
 # cumulative cases
 cumulative_df <- readRDS('data/cumulative_df.rds')
 
+# covid summary
+covid_summary_df <- readRDS('data/covid_summary_df.rds')
+
 # ----
 
 # ggplot Aesthetics ----
 my_theme <- theme(
-  plot.background = element_rect(fill = '#293535', color = '#293535'),
+  #plot.background = element_rect(fill = '#293535', color = '#293535'),
   plot.margin = unit(c(1.5,1.5,1.5,1.5), 'cm'),
-  panel.background = element_rect(fill = '#293535'),
-  panel.grid.major = element_line(linetype = 'dashed', color = '#4d6a66'),
-  panel.grid.minor = element_line(color = '#293535'),
-  text = element_text(size = 18, color = '#fffacd'),
-  axis.text = element_text(size = 18, color = '#fffacd'),
-  axis.title.y = element_text(margin = margin(t=0, r=20, b=0, l=0)),
-  legend.background = element_rect(fill = '#4d6a66', color = '#4d6a66')
+  plot.title = element_text(size = 20, face = 'bold', hjust = 0.5),
+  panel.background = element_rect(fill = 'white'),
+  panel.grid.major = element_line(linetype = 'dashed', color = 'gainsboro'),
+  #panel.grid.minor = element_line(color = '#293535'),
+  text = element_text(size = 18),
+  axis.line = element_line(colour = 'black'),
+  axis.text = element_text(size = 18),
+  axis.title.y = element_text(margin = margin(t=0, r=20, b=0, l=0))
+  #legend.background = element_rect(fill = '#4d6a66', color = '#4d6a66')
 )
 # ----
 
@@ -51,8 +53,7 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
   tabPanel("Recorded Cases", 
           
     fluidRow(
-      column(1),
-      column(2,
+      column(2, style='padding-left:100px;',
         tags$head(tags$style('#diff * {display:inline;}')),
         tags$div(
           class = "sidebar-container",
@@ -103,15 +104,15 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
           leafletOutput("usa_map", height = 600)
         )
       ),
-      column(3,
-        plotOutput('cumulative_plot')
+      column(4, style='padding-right:100px;',
+        plotOutput('growth_curve'),
+        plotOutput('top10_countries')
       )
     ),
     
     # slider input
     fluidRow(
-      column(1),
-      column(8, 
+      column(8, style='padding-left:100px;',
         tags$div(
           sliderInput("date",
                      label = ("Date"),
@@ -314,17 +315,29 @@ server <- function(input, output) {
     }
   })
   
-  output$cumulative_plot <- renderPlot({
+  output$growth_curve <- renderPlot({
     ggplot(cumulative_df, aes(Date, Total/1e6, col=case_type)) +
       geom_line(size=2) +
-      labs(x=NULL, y='Reported Cases\n(millions)', col=NULL) +
+      scale_color_manual(values = c('Confirmed'='#d4af37', 
+                                    'Deaths'='#cd5555', 
+                                    'Recovered'='#79cdcd')) +
+      labs(x=NULL, y='Reported Cases\n(Millions)', col=NULL, title='Cumulative Growth') +
       my_theme + 
-      theme(legend.position = 'top')
+      theme(legend.position = 'bottom')
+  })
+  
+  output$top10_countries <- renderPlot({
+    ggplot(covid_summary_df %>% arrange(-Cases) %>% head(10), 
+           aes(reorder(Country.Region, Cases), Cases)) +
+      geom_col(size=2) +
+      coord_flip() +
+      labs(x=NULL) +
+      my_theme
   })
   
   output$stock_plot <- renderPlot({
     ggplot(stock_data, aes(x=date, y=Close, col=stock_id)) +
-      geom_line() +
+      geom_line(size = 2) +
       scale_color_manual(values = c('^GSPC'='gold', '^DJI'='tomato', '^IXIC'='seagreen3')) +
       #scale_y_continuous(breaks=c(10000, 50000)) +
       labs(x=NULL, col=NULL) + 

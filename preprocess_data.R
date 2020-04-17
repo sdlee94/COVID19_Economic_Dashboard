@@ -100,6 +100,7 @@ population_df <- as.data.frame(population[[1]]) %>%
            str_replace_all(',', '') %>% 
            as.integer())
 
+# make df of cumulative cases by Date ----
 cum_cases <- function(df, case_name){
   new_df <- df %>% 
     group_by(Date) %>% 
@@ -115,6 +116,35 @@ cumulative_df <- rbind(cum_cases(confirmed_df, 'Confirmed'),
   
 saveRDS(cumulative_df, 'data/cumulative_df.rds')
 # ----
+
+# top 10 countries ----
+cases_by_country_df <- confirmed_df %>% 
+  filter(Date==max(confirmed_df$Date)) %>% 
+  group_by(Country.Region) %>%
+  summarize(Cases = sum(Cases)) %>% 
+  left_join(population_df) %>%
+  mutate(Cases.Pop = Cases/(Population/100000))
+
+deaths_by_country_df <- deaths_df %>% 
+  filter(Date==max(confirmed_df$Date)) %>% 
+  group_by(Country.Region) %>%
+  summarize(Deaths = sum(Cases))
+
+recovered_by_country_df <- recovered_df %>% 
+  filter(Date==max(confirmed_df$Date)) %>% 
+  group_by(Country.Region) %>%
+  summarize(Recovered = sum(Cases))
+
+covid_summary_df <- cases_by_country_df %>% 
+  left_join(deaths_by_country_df) %>% 
+  left_join(recovered_by_country_df) %>% 
+  mutate(Country.Region = as.factor(Country.Region),
+         Fatality.Rate = round(Deaths/Cases*100, 2),
+         Recovery.Rate = round(Recovered/Cases*100, 2))
+
+saveRDS(covid_summary_df, 'data/covid_summary_df.rds')
+# ----
+
 
 get_pc_diff <- function(region = 'Worldwide', df) {
   current_day <- max(confirmed_df$Date)
