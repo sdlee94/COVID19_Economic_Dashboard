@@ -134,6 +134,12 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
       # selectInput('Covid_Trend', label = NULL,
       #             choices = c('Cumulative', 'Daily Cases'), width = "30%"),
       plotOutput('covid_trend', height = 300),
+      selectInput('top10_stat', label = NULL,
+                  choices = c('Absolute Cases', 
+                              'Cases per 100k Pop.', 
+                              'Fatality Rate', 
+                              'Recovery Rate')
+                  ),
       plotOutput('top10_countries', height = 300)
     )
   ),
@@ -212,7 +218,9 @@ server <- function(input, output) {
   })
   
   output$confirmed_diff <- renderText({
-    str_c(pc_diff_df[pc_diff_df$region==input$map_view,]$confirmed, "% ")
+    str_c(cumulative_df[cumulative_df$region==input$map_view &
+                        cumulative_df$Date==input$date &
+                        cumulative_df$case_type=='Confirmed',]$pc_change, "% ")
   })
   
   output$n_deaths <- renderText({ 
@@ -221,7 +229,9 @@ server <- function(input, output) {
   })
   
   output$deaths_diff <- renderText({
-    str_c(pc_diff_df[pc_diff_df$region==input$map_view,]$deaths, "% ")
+    str_c(cumulative_df[cumulative_df$region==input$map_view &
+                          cumulative_df$Date==input$date &
+                          cumulative_df$case_type=='Deaths',]$pc_change, "% ")
   })
   
   output$n_recovered <- renderText({ 
@@ -230,7 +240,9 @@ server <- function(input, output) {
   })
   
   output$recovered_diff <- renderText({
-    str_c(pc_diff_df[pc_diff_df$region==input$map_view,]$recovered, "% ")
+    str_c(cumulative_df[cumulative_df$region==input$map_view &
+                          cumulative_df$Date==input$date &
+                          cumulative_df$case_type=='Recovered',]$pc_change, "% ")
   })
   
   output$world_map <- renderLeaflet({
@@ -358,15 +370,23 @@ server <- function(input, output) {
     })
   })
   
-  output$top10_countries <- renderPlot({
-    ggplot(covid_summary_df %>% arrange(-Cases) %>% head(10), 
-           aes(reorder(Country.Region, Cases), Cases/1000)) +
-      geom_col(size=2, width=0.7) +
-      coord_flip() +
-      labs(x=NULL, y='Cases (Thousands)') +
-      my_theme
+  observeEvent(input$top10_stat, {
+    column_name <- case_when(input$top10_stat=='Absolute Cases'~'Cases',
+                             input$top10_stat=='Cases per 100k Pop.'~'Cases.Pop',
+                             input$top10_stat=='Fatality Rate'~'Fatality.Rate',
+                             input$top10_stat=='Recovery Rate'~'Recovery.Rate')
+
+    output$top10_countries <- renderPlot({
+      ggplot(covid_summary_df %>% arrange(-!!as.symbol(column_name)) %>% head(10), 
+             aes(x = reorder(Country.Region, !!as.symbol(column_name)), 
+                 y = !!as.symbol(column_name))) +
+        geom_col(size=2, width=0.7) +
+        coord_flip() +
+        labs(x=NULL, y=input$top10_stat) +
+        my_theme
+    })
   })
-  
+
   output$stock_plot <- renderPlot({
     ggplot(stock_data, aes(x=date, y=Close, col=stock_id)) +
       geom_line(size = 2) +

@@ -131,8 +131,11 @@ cumulative_df <- rbind(cum_cases(confirmed_df, 'Confirmed'),
                        cum_cases(confirmed_df, 'Confirmed', region='Canada'),
                        cum_cases(deaths_df, 'Deaths', region='Canada'),
                        cum_cases(recovered_df, 'Recovered', region='Canada')) %>% 
-  mutate(case_type = factor(case_type, levels=c('Confirmed', 'Recovered', 'Deaths')))
-  
+  mutate(pc_change = round(Daily / lag(Total)*100, 2),
+         case_type = factor(case_type, levels=c('Confirmed', 'Recovered', 'Deaths')))
+
+cumulative_df[is.na(cumulative_df)] <- 0 
+
 saveRDS(cumulative_df, 'data/cumulative_df.rds')
 # ----
 
@@ -159,35 +162,36 @@ covid_summary_df <- cases_by_country_df %>%
   left_join(recovered_by_country_df) %>% 
   mutate(Country.Region = as.factor(Country.Region),
          Fatality.Rate = round(Deaths/Cases*100, 2),
-         Recovery.Rate = round(Recovered/Cases*100, 2))
+         Recovery.Rate = round(Recovered/Cases*100, 2)) %>% 
+  na.omit()
 
 saveRDS(covid_summary_df, 'data/covid_summary_df.rds')
 # ----
 
 
-get_pc_diff <- function(region = 'Worldwide', df) {
-  current_day <- max(confirmed_df$Date)
-  previous_day <- current_day - 1
-  
-  if(region=='Worldwide'){
-    total_current <- sum(df[df$Date==current_day,]$Cases)
-    total_previous <- sum(df[df$Date==previous_day,]$Cases)
-  } else {
-    total_current <- sum(df[df$Date==current_day & df$Country.Region==region,]$Cases)
-    total_previous <- sum(df[df$Date==previous_day & df$Country.Region==region,]$Cases)
-  }
-
-  percent_diff <- round((total_current - total_previous)/total_previous*100, 2)
-  return(percent_diff)
-}
-
-regions <- c('Worldwide', 'Canada', 'United States')
-
-pc_diff_df <- data.frame(region = regions,
-                         confirmed = (regions %>% map(get_pc_diff, confirmed_df) %>% unlist()),
-                         deaths = (regions %>% map(get_pc_diff, deaths_df) %>% unlist()),
-                         recovered = (regions %>% map(get_pc_diff, recovered_df) %>% unlist()))
-saveRDS(pc_diff_df, 'data/pc_diff_df.rds')
+# get_pc_diff <- function(region = 'Worldwide', df) {
+#   current_day <- max(confirmed_df$Date)
+#   previous_day <- current_day - 1
+#   
+#   if(region=='Worldwide'){
+#     total_current <- sum(df[df$Date==current_day,]$Cases)
+#     total_previous <- sum(df[df$Date==previous_day,]$Cases)
+#   } else {
+#     total_current <- sum(df[df$Date==current_day & df$Country.Region==region,]$Cases)
+#     total_previous <- sum(df[df$Date==previous_day & df$Country.Region==region,]$Cases)
+#   }
+# 
+#   percent_diff <- round((total_current - total_previous)/total_previous*100, 2)
+#   return(percent_diff)
+# }
+# 
+# regions <- c('Worldwide', 'Canada', 'United States')
+# 
+# pc_diff_df <- data.frame(region = regions,
+#                          confirmed = (regions %>% map(get_pc_diff, confirmed_df) %>% unlist()),
+#                          deaths = (regions %>% map(get_pc_diff, deaths_df) %>% unlist()),
+#                          recovered = (regions %>% map(get_pc_diff, recovered_df) %>% unlist()))
+# saveRDS(pc_diff_df, 'data/pc_diff_df.rds')
 
 
 confirmed_by_country_df <- confirmed_df %>% 
