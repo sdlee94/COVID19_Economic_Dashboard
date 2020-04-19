@@ -20,20 +20,20 @@ stock_data <- readRDS('data/stock_data.rds')
 # ----
 
 # % change from previous day 
-pc_diff_df <- readRDS('data/pc_diff_df.rds')
+#pc_diff_df <- readRDS('data/pc_diff_df.rds')
 
 # cumulative cases
 cumulative_df <- readRDS('data/cumulative_df.rds')
 
-# covid summary
+# covid summaries
 covid_summary_df <- readRDS('data/covid_summary_df.rds')
-
+summary_by_state_df <-readRDS('data/summary_by_state_df.rds')
 # ----
 
 # ggplot Aesthetics ----
 my_theme <- theme(
   #plot.background = element_rect(fill = '#293535', color = '#293535'),
-  plot.margin = unit(c(1,1,1,1), 'cm'),
+  plot.margin = unit(c(0.5,1,1,1), 'cm'),
   plot.title = element_text(size = 20, face = 'bold', hjust = 0.5),
   panel.background = element_rect(fill = 'white'),
   panel.grid.major = element_line(linetype = 'dashed', color = 'gainsboro'),
@@ -85,7 +85,9 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
           ),
           tags$footer(class = "sidebar-date-container", 
             tags$p(class = "sidebar-date", textOutput("show_date"))
-          )
+          ),
+          tags$a(href='https://github.com/CSSEGISandData/COVID-19', 
+                 'Powered by John Hopkins Data')
         ),
         column(9,
           tags$div(class = "map-select", 
@@ -181,12 +183,9 @@ server <- function(input, output) {
     if (input$map_view == 'Worldwide') {
       confirmed_df %>% 
         filter(Date==input$date)
-    } else if (input$map_view == 'Canada') {
+    } else {
       confirmed_df %>% 
-        filter(Date==input$date & Country.Region=='Canada')
-    } else if (input$map_view == 'United States') {
-      confirmed_df %>% 
-        filter(Date==input$date & Country.Region=='United States')
+        filter(Date==input$date & Country.Region==input$map_view)
     }
   })
   
@@ -194,18 +193,20 @@ server <- function(input, output) {
     if (input$map_view == 'Worldwide') {
       deaths_df %>% 
         filter(Date==input$date)
-    } else if (input$map_view == 'Canada') {
+    } else {
       deaths_df %>% 
-        filter(Date==input$date & Country.Region=='Canada')
-    } else if (input$map_view == 'United States') {
-      deaths_df %>% 
-        filter(Date==input$date & Country.Region=='United States')
+        filter(Date==input$date & Country.Region==input$map_view)
     }
   })
   
   r_recovered <- reactive({
-    recovered_df %>% 
-      filter(Date==input$date)
+    if (input$map_view == 'Worldwide') {
+      recovered_df %>% 
+        filter(Date==input$date)
+    } else {
+      recovered_df %>% 
+        filter(Date==input$date & Country.Region==input$map_view)
+    }
   })
   
   output$show_date <- renderText({ 
@@ -351,7 +352,7 @@ server <- function(input, output) {
         my_theme + 
         theme(legend.position = 'bottom')
     })
-  }, ignoreNULL = FALSE)
+  })
   
   observeEvent({
     input$daily_cases
@@ -360,7 +361,7 @@ server <- function(input, output) {
     output$covid_trend <- renderPlot({
       ggplot(cumulative_df %>% filter(region==input$map_view),
              aes(Date, Daily/1000, fill=case_type)) +
-        geom_col(width=0.7) +
+        geom_col() +
         scale_fill_manual(values = c('Confirmed'='#d4af37', 
                                       'Deaths'='#cd5555', 
                                       'Recovered'='#79cdcd')) +
@@ -368,23 +369,44 @@ server <- function(input, output) {
         my_theme + 
         theme(legend.position = 'bottom')
     })
-  })
+  }, ignoreNULL = FALSE)
   
-  observeEvent(input$top10_stat, {
+  observeEvent({
+    input$map_view
+    input$top10_stat
+  }, {
     column_name <- case_when(input$top10_stat=='Absolute Cases'~'Cases',
                              input$top10_stat=='Cases per 100k Pop.'~'Cases.Pop',
                              input$top10_stat=='Fatality Rate'~'Fatality.Rate',
                              input$top10_stat=='Recovery Rate'~'Recovery.Rate')
-
-    output$top10_countries <- renderPlot({
-      ggplot(covid_summary_df %>% arrange(-!!as.symbol(column_name)) %>% head(10), 
-             aes(x = reorder(Country.Region, !!as.symbol(column_name)), 
-                 y = !!as.symbol(column_name))) +
-        geom_col(size=2, width=0.7) +
-        coord_flip() +
-        labs(x=NULL, y=input$top10_stat) +
-        my_theme
-    })
+    
+    if(input$map_view=='Worldwide'){
+      output$top10_countries <- renderPlot({
+        ggplot(covid_summary_df %>% arrange(-!!as.symbol(column_name)) %>% head(10), 
+               aes(x = reorder(Country.Region, !!as.symbol(column_name)), 
+                   y = !!as.symbol(column_name))) +
+          geom_col(size=2, width=0.1) +
+          geom_point(size=3, color='red') +
+          coord_flip() +
+          scale_y_continuous(labels = scales::comma) +
+          labs(x=NULL, y=input$top10_stat) +
+          my_theme
+      })
+    } else {
+      output$top10_countries <- renderPlot({
+        ggplot(summary_by_province_state_df %>% 
+                 filter(region==input$map_view) %>% 
+                 arrange(-!!as.symbol(column_name)) %>% head(10), 
+               aes(x = reorder(Province.State, !!as.symbol(column_name)), 
+                   y = !!as.symbol(column_name))) +
+          geom_col(size=2, width=0.7) +
+          coord_flip() +
+          scale_y_continuous(labels = scales::comma) +
+          labs(x=NULL, y=input$top10_stat) +
+          my_theme
+      })
+    }
+    
   })
 
   output$stock_plot <- renderPlot({

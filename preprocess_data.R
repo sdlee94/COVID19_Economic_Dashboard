@@ -85,21 +85,6 @@ saveRDS(confirmed_df, 'data/confirmed_df.rds')
 saveRDS(deaths_df, 'data/deaths_df.rds')
 saveRDS(recovered_df, 'data/recovered_df.rds')
 
-
-# population by country in 2020
-url <- 'https://www.worldometers.info/world-population/population-by-country/'
-
-population <- url %>%
-  read_html() %>%
-  html_nodes(xpath='//*[@id="example2"]') %>%
-  html_table()
-
-population_df <- as.data.frame(population[[1]]) %>% 
-  select(Country.Region = `Country (or dependency)`, Population = `Population (2020)`) %>% 
-  mutate(Population = Population %>% 
-           str_replace_all(',', '') %>% 
-           as.integer())
-
 # make df of cumulative cases by Date ----
 cum_cases <- function(df, case_name, region='Worldwide'){
   if(region=='Worldwide'){
@@ -139,6 +124,20 @@ cumulative_df[is.na(cumulative_df)] <- 0
 saveRDS(cumulative_df, 'data/cumulative_df.rds')
 # ----
 
+# population by country in 2020
+url <- 'https://www.worldometers.info/world-population/population-by-country/'
+
+population <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@id="example2"]') %>%
+  html_table()
+
+population_df <- as.data.frame(population[[1]]) %>% 
+  select(Country.Region = `Country (or dependency)`, Population = `Population (2020)`) %>% 
+  mutate(Population = Population %>% 
+           str_replace_all(',', '') %>% 
+           as.integer())
+
 # top 10 countries ----
 cases_by_country_df <- confirmed_df %>% 
   filter(Date==max(confirmed_df$Date)) %>% 
@@ -168,39 +167,80 @@ covid_summary_df <- cases_by_country_df %>%
 saveRDS(covid_summary_df, 'data/covid_summary_df.rds')
 # ----
 
+# population by state in 2019
+url <- 'https://en.wikipedia.org/wiki/List_of_states_and_territories_of_the_United_States_by_population'
 
-# get_pc_diff <- function(region = 'Worldwide', df) {
-#   current_day <- max(confirmed_df$Date)
-#   previous_day <- current_day - 1
-#   
-#   if(region=='Worldwide'){
-#     total_current <- sum(df[df$Date==current_day,]$Cases)
-#     total_previous <- sum(df[df$Date==previous_day,]$Cases)
-#   } else {
-#     total_current <- sum(df[df$Date==current_day & df$Country.Region==region,]$Cases)
-#     total_previous <- sum(df[df$Date==previous_day & df$Country.Region==region,]$Cases)
-#   }
-# 
-#   percent_diff <- round((total_current - total_previous)/total_previous*100, 2)
-#   return(percent_diff)
-# }
-# 
-# regions <- c('Worldwide', 'Canada', 'United States')
-# 
-# pc_diff_df <- data.frame(region = regions,
-#                          confirmed = (regions %>% map(get_pc_diff, confirmed_df) %>% unlist()),
-#                          deaths = (regions %>% map(get_pc_diff, deaths_df) %>% unlist()),
-#                          recovered = (regions %>% map(get_pc_diff, recovered_df) %>% unlist()))
-# saveRDS(pc_diff_df, 'data/pc_diff_df.rds')
+population <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@id="mw-content-text"]/div/table[1]') %>%
+  html_table(fill=T)
 
+population_df <- data.frame(population[[1]])[-1,] %>% 
+  select(Province.State = State, Population = Census.population) %>% 
+  mutate(Population = Population %>% 
+           str_replace_all(',', '') %>% 
+           as.integer())
 
-confirmed_by_country_df <- confirmed_df %>% 
-  group_by(Country.Region, Date) %>% 
+cases_by_state_df <- confirmed_df %>% 
+  filter(Country.Region=='United States',
+         Date==max(confirmed_df$Date)) %>% 
+  group_by(Province.State) %>%
   summarize(Cases = sum(Cases)) %>% 
-  mutate(diff = round((Cases - lag(Cases)) / lag(Cases) * 100, 2),
-         diff = if_else(is.na(diff), 0, diff))
+  left_join(population_df) %>%
+  mutate(Cases.Pop = Cases/(Population/100000))
             
-  
+deaths_by_state_df <- deaths_df %>% 
+  filter(Country.Region=='United States',
+         Date==max(confirmed_df$Date)) %>% 
+  group_by(Province.State) %>%
+  summarize(Deaths = sum(Cases))
+
+summary_by_state_df <- cases_by_state_df %>% 
+  left_join(deaths_by_state_df) %>% 
+  mutate(Province.State = as.factor(Province.State),
+         Fatality.Rate = round(Deaths/Cases*100, 2),
+         region = 'United States') %>% 
+  na.omit()
+
+# population by province in 2019
+url <- 'https://worldpopulationreview.com/canadian-provinces/'
+
+population <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@id="recentPopulationEstimate"]/div[1]/div/div/div/div/div/table') %>%
+  html_table(fill=T)
+
+population_df <- population[[1]] %>% 
+  select(Province.State = Name, Population = `2019 Population`) %>% 
+  mutate(Population = Population %>% 
+           str_replace_all(',', '') %>% 
+           as.integer())
+
+cases_by_province_df <- confirmed_df %>% 
+  filter(Country.Region=='Canada',
+         Date==max(confirmed_df$Date)) %>% 
+  group_by(Province.State) %>%
+  summarize(Cases = sum(Cases)) %>% 
+  left_join(population_df) %>%
+  mutate(Cases.Pop = Cases/(Population/100000))
+
+deaths_by_province_df <- deaths_df %>% 
+  filter(Country.Region=='Canada',
+         Date==max(confirmed_df$Date)) %>% 
+  group_by(Province.State) %>%
+  summarize(Deaths = sum(Cases))
+
+summary_by_province_df <- cases_by_province_df %>% 
+  left_join(deaths_by_province_df) %>% 
+  mutate(Province.State = as.factor(Province.State),
+         Fatality.Rate = round(Deaths/Cases*100, 2),
+         region = 'Canada') %>% 
+  na.omit()
+
+summary_by_province_state_df <- rbind(summary_by_state_df,
+                                      summary_by_province_df)
+
+saveRDS(summary_by_province_state_df, 'data/summary_by_province_state_df.rds')
 
 # MAPS ----
 # spatial dataframe of the world
