@@ -19,15 +19,12 @@ canada <- readRDS('data/canada_map.rds')
 stock_data <- readRDS('data/stock_data.rds')
 # ----
 
-# % change from previous day 
-#pc_diff_df <- readRDS('data/pc_diff_df.rds')
-
 # cumulative cases
 cumulative_df <- readRDS('data/cumulative_df.rds')
 
 # covid summaries
 covid_summary_df <- readRDS('data/covid_summary_df.rds')
-summary_by_state_df <-readRDS('data/summary_by_state_df.rds')
+summary_by_province_state_df <-readRDS('data/summary_by_province_state_df.rds')
 # ----
 
 # ggplot Aesthetics ----
@@ -142,7 +139,7 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
                               'Fatality Rate', 
                               'Recovery Rate')
                   ),
-      plotOutput('top10_countries', height = 300)
+      plotOutput('top10_plot', height = 300)
     )
   ),
   
@@ -381,7 +378,7 @@ server <- function(input, output) {
                              input$top10_stat=='Recovery Rate'~'Recovery.Rate')
     
     if(input$map_view=='Worldwide'){
-      output$top10_countries <- renderPlot({
+      output$top10_plot <- renderPlot({
         ggplot(covid_summary_df %>% arrange(-!!as.symbol(column_name)) %>% head(10), 
                aes(x = reorder(Country.Region, !!as.symbol(column_name)), 
                    y = !!as.symbol(column_name))) +
@@ -393,7 +390,7 @@ server <- function(input, output) {
           my_theme
       })
     } else {
-      output$top10_countries <- renderPlot({
+      output$top10_plot <- renderPlot({
         ggplot(summary_by_province_state_df %>% 
                  filter(region==input$map_view) %>% 
                  arrange(-!!as.symbol(column_name)) %>% head(10), 
