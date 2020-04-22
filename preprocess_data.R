@@ -2,6 +2,7 @@ library(tidyverse)
 library(data.table)
 library(httr)
 library(rvest)
+library(reticulate)
 
 # COVID DATA ----
 
@@ -263,27 +264,90 @@ if(!file.exists('data/canada_map.rds')){
 # ----
 
 # STOCKS DATA ----
-eco_url = 'http://finmindapi.servebeer.com/api/data'
+
+current_date <- format(Sys.Date(), '%d.%m.%y') %>% 
+  str_replace('\\.0([:digit:])\\.', '\\.\\1\\.')
+
+use_python('C:\\Users/Steph/Anaconda3/python.exe', required=T)
+source_python('get_prices.py')
+
+indices_df <- c('dow_jones_global_dow', 'dow_jones', 's&p_500', 'nasdaq_100', 's&p-tsx-60') %>% 
+  map(get_prices, query_class='index', start_date='22.1.2020', end_date=current_date) %>% 
+  bind_rows() %>% 
+  mutate(Index.Name = case_when(Query=='dow_jones_global_dow'~'Global Dow',
+                                Query=='dow_jones'~'Dow Jones',
+                                Query=='nasdaq_100'~'Nasdaq',
+                                Query=='s&p_500'~'S&P 500',
+                                Query=='s&p-tsx-60'~'S&P TSX'),
+         Date = str_replace_all(Date, '/', '-') %>% 
+           as.Date(format='%m-%d-%y'),
+         Close = str_replace_all(Close, ',', '') %>% 
+           as.numeric()) %>% 
+  arrange(Query, Date) %>% 
+  group_by(Query) %>% 
+  mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2))
+
+saveRDS(indices_df, 'data/indices_df.rds')
+
+commodities <- c('gold-price', 'live-cattle-price', 'lumber-price', 'oil-price', 'rice-price')
+commodities_df <- commodities %>%
+  map(get_prices, query_class='commodities', start_date='22.1.2020', end_date=current_date) %>% 
+  bind_rows() %>% 
+  mutate(Query = Query %>% 
+           str_replace('-price', '') %>% 
+           str_replace('-', ' ') %>% 
+           toTitleCase(),
+         Date = str_replace_all(Date, '/', '-') %>% 
+           as.Date(format='%m-%d-%y'),
+         Close = str_replace_all(Close, ',', '') %>% 
+           as.numeric()) %>% 
+  arrange(Query, Date) %>% 
+  group_by(Query) %>% 
+  arrange(Date) %>% 
+  mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2))
+
+saveRDS(commodities_df, 'data/commodities_df.rds')
+
+# indices during the Great Recession
+# past_indices_df <- c('dow_jones', 's&p_500', 'nasdaq_100') %>% 
+#   map(get_prices, query_class='index', start_date='1.12.2007', end_date='30.7.2009') %>% 
+#   bind_rows() %>% 
+#   mutate(Index.Name = case_when(Query=='dow_jones'~'Dow Jones',
+#                                 Query=='nasdaq_100'~'Nasdaq',
+#                                 Query=='s&p_500'~'S&P 500'),
+#          Date = str_replace_all(Date, '/', '-') %>% 
+#            as.Date(format='%m-%d-%y'),
+#          Close = str_replace_all(Close, ',', '') %>% 
+#            as.numeric()) %>% 
+#   group_by(Query) %>% 
+#   mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2))
+# 
+# past_indices_df %>% group_by(Index.Name) %>% summarize(peak_drop = min(pc_change))
+
+#eco_url = 'http://finmindapi.servebeer.com/api/data'
 
 # Fx to obtain stock time series data
-get_stock_data <- function(stock_id){
-  payload <- list('dataset' = 'USStockPrice',
-                  'stock_id' = stock_id,
-                  'date'='2020-01-22')
-  response <- POST(eco_url, body = payload, encode = "form")
-  print(stock_id)
-  data <- response %>% content
-  
-  df <- do.call('cbind', data$data) %>% 
-    data.table %>% 
-    unnest(cols = colnames(.))
-  
-  return(df)
-}
-
-stock_data <- c('^GSPC', '^DJI', '^IXIC') %>%
-  map(get_stock_data) %>%
-  bind_rows() %>% 
-  mutate(date = as.Date(date))
-saveRDS(stock_data, 'data/stock_data.rds')
+# get_stock_data <- function(stock_id){
+#   payload <- list('dataset' = 'USStockPrice',
+#                   'stock_id' = stock_id,
+#                   'date'='2020-01-22')
+#   response <- POST(eco_url, body = payload, encode = "form")
+#   print(stock_id)
+#   data <- response %>% content
+#   
+#   df <- do.call('cbind', data$data) %>% 
+#     data.table %>% 
+#     unnest(cols = colnames(.))
+#   
+#   return(df)
+# }
+# 
+# stock_data <- c('^GSPC', '^DJI', '^IXIC') %>%
+#   map(get_stock_data) %>%
+#   bind_rows() %>%
+#   select(date, stock_id, Close) %>% 
+#   group_by(stock_id) %>% 
+#   mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2),
+#          date = as.Date(date))
+# saveRDS(stock_data, 'data/stock_data.rds')
 # ----

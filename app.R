@@ -16,7 +16,8 @@ usa <- readRDS('data/usa_map.rds')
 canada <- readRDS('data/canada_map.rds')
 
 # import stock data
-stock_data <- readRDS('data/stock_data.rds')
+#stock_data <- readRDS('data/stock_data.rds')
+indices_df <- readRDS('data/indices_df.rds')
 # ----
 
 # cumulative cases
@@ -146,14 +147,14 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
   # second tab of the layout, economy data and chart
   tabPanel("Economy", 
     fluidRow(
-      column(1),
-      column(3,
+      column(3, style='padding-left:50px;',
         span(h3("DJI"), style='color:#000000'),
         span(h3("GSPC"), style='color:#000000'),
         span(h3("IXIC"), style='color:#000000')
       ),
       column(7,
-        plotOutput('stock_plot')
+        plotOutput('index_plot'),
+        plotOutput('commodities_plot')
       ),
       column(1)
     )
@@ -406,14 +407,29 @@ server <- function(input, output) {
     
   })
 
-  output$stock_plot <- renderPlot({
-    ggplot(stock_data, aes(x=date, y=Close, col=stock_id)) +
-      geom_line(size = 2) +
-      scale_color_manual(values = c('^GSPC'='gold', '^DJI'='tomato', '^IXIC'='seagreen3')) +
-      #scale_y_continuous(breaks=c(10000, 50000)) +
-      labs(x=NULL, col=NULL) + 
+  output$index_plot <- renderPlot({
+    ggplot(indices_df %>% filter(Index.Name %in% c('Dow Jones', 'Nasdaq', 'S&P 500')),
+           aes(x=Date, y=pc_change, col=Index.Name)) +
+      geom_line(size = 1.5) +
+      #scale_color_manual(values = c('^GSPC'='gold', '^DJI'='tomato', '^IXIC'='seagreen3')) +
+      scale_x_date(date_labels='%b-%d', date_breaks="1 week") +
+      scale_y_continuous(labels = function(x) paste0(x, "%")) +
+      labs(x=NULL, y='% Change', col=NULL) + 
       my_theme +
-      theme(legend.position = 'top')
+      theme(axis.text.x = element_text(angle=45, hjust=1),
+            legend.position = 'top')
+  })
+  
+  output$commodities_plot <- renderPlot({
+    ggplot(commodities_df,
+           aes(x=Date, y=pc_change, col=Query)) +
+      geom_line(size = 1.5) +
+      scale_x_date(date_labels='%b-%d', date_breaks="1 week") +
+      scale_y_continuous(labels = function(x) paste0(x, "%")) +
+      labs(x=NULL, y='% Change', col=NULL) + 
+      my_theme +
+      theme(axis.text.x = element_text(angle=45, hjust=1),
+            legend.position = 'top')
   })
 }
 

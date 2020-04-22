@@ -8,36 +8,44 @@ from bs4 import BeautifulSoup
 def parse_args():
     desc = "Scrape historical prices from marketsinsider"
     parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument('--item', type=str)
+    parser.add_argument('--query', type=str)
     return parser.parse_args()
 
 args = parse_args()
-item = args.item
+query = args.query
 
-today = datetime.date.today()
-today_date = f'{today.day}.{today.month}.{today.year}'
+def get_prices(query, query_class, start_date, end_date):
 
-markets_url = 'https://markets.businessinsider.com/commodities/historical-prices'
-item_url = f'{markets_url}/{item}-price/usd/22.1.2020_{today_date}'
+    markets_url = f'https://markets.businessinsider.com/{query_class}/historical-prices'
 
-print(f'Accessing Webpage for {item} from 22.1.2020 to {today_date}')
-# need geckodriver installed for this to run
-browser = webdriver.Firefox(executable_path='C:/Users/Steph/bin/geckodriver.exe')
-browser.get(item_url)
+    if(query_class=='index'):
+        query_url = f'{markets_url}/{query}/{start_date}_{end_date}'
+    else:
+        query_url = f'{markets_url}/{query}/usd/{start_date}_{end_date}'
 
-search_form = browser.find_element_by_id('historic-price-list')
-test = browser.find_element_by_css_selector('table.table.instruments')
-soup = BeautifulSoup(test.get_attribute("outerHTML"), 'lxml')
+    print(f'Accessing Webpage for {query} from {start_date} to {end_date}')
+    # need geckodriver installed for this to run
+    browser = webdriver.Firefox(executable_path='C:/Users/Steph/bin/geckodriver.exe')
+    browser.get(query_url)
 
-dates = []
-close_prices = []
-for tr in soup.find_all('tr')[2:]:
-    tds = tr.find_all('td')
-    dates.append(tds[0].text.strip())
-    close_prices.append(tds[1].text.strip())
+    search_form = browser.find_element_by_id('historic-price-list')
+    test = browser.find_element_by_css_selector('table.table.instruments')
+    soup = BeautifulSoup(test.get_attribute("outerHTML"), 'lxml')
 
-browser.close()
+    dates = []
+    close_prices = []
+    for tr in soup.find_all('tr')[2:]:
+        tds = tr.find_all('td')
+        dates.append(tds[0].text.strip())
+        close_prices.append(tds[1].text.strip())
 
-price_df = pd.DataFrame({'Date':dates, 'Close':close_prices})
-price_df.to_csv(f'data/{item}_prices.csv', index=False)
-print(f'Prices Obtained for {item}')
+    browser.close()
+
+    price_df = pd.DataFrame({
+        'Date':dates, 'Close':close_prices,
+        'Query_class':query_class, 'Query':query})
+
+    #price_df.to_csv(f'data/{query}_prices.csv', index=False)
+    print(f'Prices Obtained for {query} from {start_date} to {end_date}')
+
+    return(price_df)
