@@ -308,6 +308,26 @@ commodities_df <- commodities %>%
 
 saveRDS(commodities_df, 'data/commodities_df.rds')
 
+
+#UNEMPLOYMENT DATA ----
+# source: https://data.oecd.org/unemp/unemployment-rate.htm#indicator-chart
+emp_df <- fread('data/OECD_unemp.csv') %>% 
+  select(Country.Code = LOCATION, Date = TIME, Unemp.Rate = Value) %>% 
+  mutate(Date = Date %>% 
+           str_c('-01') %>% 
+           as.Date(format='%Y-%m-%d'))
+
+saveRDS(emp_df, 'data/emp_df.rds')
+
+ggplot(emp_df %>% filter(Country.Code %in% c('CAN', 'USA')), 
+       aes(Date, Unemp.Rate, col=Country.Code)) +
+  geom_line()
+
+ggplot(emp_df, aes(Country.Code, Unemp.Rate)) +
+  geom_boxplot() +
+  geom_point(data = emp3_df %>% filter(Date=='2020-03-01'), col='red')
+# ----
+
 # indices during the Great Recession
 # past_indices_df <- c('dow_jones', 's&p_500', 'nasdaq_100') %>% 
 #   map(get_prices, query_class='index', start_date='1.12.2007', end_date='30.7.2009') %>% 

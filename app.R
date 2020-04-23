@@ -5,7 +5,7 @@ library(shinyWidgets)
 library(leaflet)
 library(rworldmap)
 
-# COVID DATA ----
+# DATA ----
 confirmed_df <- readRDS('data/confirmed_df.rds')
 deaths_df <- readRDS('data/deaths_df.rds')
 recovered_df <- readRDS('data/recovered_df.rds')
@@ -15,17 +15,22 @@ world <- readRDS('data/world_map.rds')
 usa <- readRDS('data/usa_map.rds')
 canada <- readRDS('data/canada_map.rds')
 
-# import stock data
-#stock_data <- readRDS('data/stock_data.rds')
-indices_df <- readRDS('data/indices_df.rds')
-# ----
-
-# cumulative cases
+# import cumulative cases
 cumulative_df <- readRDS('data/cumulative_df.rds')
 
-# covid summaries
+# import covid summaries (for top10 plot)
 covid_summary_df <- readRDS('data/covid_summary_df.rds')
 summary_by_province_state_df <-readRDS('data/summary_by_province_state_df.rds')
+
+# import indices data
+indices_df <- readRDS('data/indices_df.rds')
+
+# import commodities data
+commodities_df <- readRDS('data/commodities_df.rds')
+
+# import unemployment data
+emp_df <- readRDS('data/emp_df.rds')
+
 # ----
 
 # ggplot Aesthetics ----
@@ -145,18 +150,20 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
   ),
   
   # second tab of the layout, economy data and chart
-  tabPanel("Economy", 
-    fluidRow(
+  tabPanel("Economy",
+    column(8, style='padding-left:50px;',
       column(3, style='padding-left:50px;',
         span(h3("DJI"), style='color:#000000'),
         span(h3("GSPC"), style='color:#000000'),
         span(h3("IXIC"), style='color:#000000')
       ),
-      column(7,
+      column(9,
         plotOutput('index_plot'),
         plotOutput('commodities_plot')
-      ),
-      column(1)
+      )
+    ),
+    column(4, style='padding-rightt:50px;',
+      plotOutput('unemp_plot')
     )
   ),
   
@@ -427,6 +434,16 @@ server <- function(input, output) {
       scale_x_date(date_labels='%b-%d', date_breaks="1 week") +
       scale_y_continuous(labels = function(x) paste0(x, "%")) +
       labs(x=NULL, y='% Change', col=NULL) + 
+      my_theme +
+      theme(axis.text.x = element_text(angle=45, hjust=1),
+            legend.position = 'top')
+  })
+  
+  output$unemp_plot <- renderPlot({
+    ggplot(emp_df %>% filter(Country.Code %in% c('CAN', 'USA')), 
+           aes(Date, Unemp.Rate, col=Country.Code)) +
+      geom_line(size = 1.5) +
+      labs(x=NULL, y='Unemployment Rate', col=NULL) +
       my_theme +
       theme(axis.text.x = element_text(angle=45, hjust=1),
             legend.position = 'top')
