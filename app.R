@@ -13,6 +13,7 @@ library(rworldmap)
 
 # import maps
 world <- readRDS('data/world_map.rds')
+simple_world <- readRDS('data/simple_world_map.rds')
 usa <- readRDS('data/usa_map.rds')
 canada <- readRDS('data/canada_map.rds')
 
@@ -20,11 +21,11 @@ canada <- readRDS('data/canada_map.rds')
 covid_dt <- readRDS('data/covid_dt.rds')
 
 # import cumulative cases
-cumulative_df <- readRDS('data/cumulative_df.rds')
+cumulative_dt <- readRDS('data/cumulative_dt.rds')
 
 # import covid summaries (for top10 plot)
-covid_summary_df <- readRDS('data/covid_summary_df.rds')
-summary_by_province_state_df <-readRDS('data/summary_by_province_state_df.rds')
+covid_summary_dt <- readRDS('data/covid_summary_dt.rds')
+summary_by_province_state_dt <-readRDS('data/summary_by_province_state_dt.rds')
 
 # import indices data
 indices_df <- readRDS('data/indices_df.rds')
@@ -122,10 +123,10 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
           tags$div(
             sliderInput("date",
               label = ("Date"),
-              min = min(confirmed_df$Date),
-              max = max(confirmed_df$Date),
-              value = max(confirmed_df$Date),
-              animate = animationOptions(interval=600, loop=F),
+              min = min(covid_dt$Date),
+              max = max(covid_dt$Date),
+              value = max(covid_dt$Date),
+              animate = animationOptions(interval=1000, loop=F),
               timeFormat = "%d %b",
               width = "100%"
             )
@@ -138,11 +139,6 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
          tabPanel('Cumulative', plotOutput('cumulative', height = 300)),
          tabPanel('Daily Cases', plotOutput('daily_cases', height = 300))
       ),
-      #actionButton('cumulative', 'Cumulative'),
-      #actionButton('daily_cases', 'Daily Cases'),
-      # selectInput('Covid_Trend', label = NULL,
-      #             choices = c('Cumulative', 'Daily Cases'), width = "30%"),
-      #plotOutput('covid_trend', height = 300),
       selectInput('top10_stat', label = NULL,
                   choices = c('Cases', 
                               'Cases by Populace', 
@@ -188,102 +184,67 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
 )
 
 server <- function(input, output) {
-  # r_confirmed <- reactive({
-  #   if (input$map_view == 'Worldwide') {
-  #     confirmed_df %>%
-  #       filter(Date==input$date)
-  #   } else {
-  #     confirmed_df %>%
-  #       filter(Date==input$date & Country.Region==input$map_view)
-  #   }
-  # })
-  # 
-  # r_deaths <- reactive({
-  #   if (input$map_view == 'Worldwide') {
-  #     deaths_df %>%
-  #       filter(Date==input$date)
-  #   } else {
-  #     deaths_df %>%
-  #       filter(Date==input$date & Country.Region==input$map_view)
-  #   }
-  # })
-  
-  # r_recovered <- reactive({
-  #   if (input$map_view == 'Worldwide') {
-  #     recovered_df %>%
-  #       filter(Date==input$date)
-  #   } else {
-  #     recovered_df %>%
-  #       filter(Date==input$date & Country.Region==input$map_view)
-  #   }
-  # })
-  
   output$show_date <- renderText({ 
     format(input$date,"%d %B %Y")
   })
   
+  r_covid <- reactive({
+    covid_dt[Map.View==input$map_view & 
+               Date==input$date]
+  })
+  
   output$n_confirmed <- renderText({ 
+    #r_covid()[Case.Type=='Confirmed']$Cases %>%
+    covid_dt[Map.View==input$map_view & 
+               Date==input$date &
+               Case.Type=='Confirmed']$Cases %>%  
+      sum(na.rm=T) %>% 
+      as.integer() %>% 
+      format(big.mark=',')
+  })
+  
+  output$n_recovered <- renderText({ 
+    #r_covid()[
     covid_dt[Map.View==input$map_view & 
                Date==input$date & 
-               Case.Type=='Confirmed',]$Cases %>% 
+               Case.Type=='Recovered']$Cases %>%
+      sum(na.rm=T) %>% 
+      as.integer() %>% 
+      format(big.mark=',')
+  })
+  
+  output$n_deaths <- renderText({ 
+    covid_dt[Map.View==input$map_view & 
+               Date==input$date & 
+               Case.Type=='Deaths']$Cases %>% 
       sum(na.rm=T) %>% 
       as.integer() %>% 
       format(big.mark=',')
   })
   
   output$confirmed_diff <- renderText({
-    str_c(cumulative_df[cumulative_df$region==input$map_view &
-                        cumulative_df$Date==input$date &
-                        cumulative_df$case_type=='Confirmed',]$pc_change, "% ")
-  })
-  
-  output$n_deaths <- renderText({ 
-    covid_dt[Map.View==input$map_view & 
-               Date==input$date & 
-               Case.Type=='Deaths',]$Cases %>% 
-      sum(na.rm=T) %>% 
-      as.integer() %>% 
-      format(big.mark=',')
+    cumulative_dt[region==input$map_view & 
+                    Date==input$date & 
+                    case_type=='Confirmed',]$pc_change %>% 
+      str_c(' %')
   })
   
   output$deaths_diff <- renderText({
-    str_c(cumulative_df[cumulative_df$region==input$map_view &
-                          cumulative_df$Date==input$date &
-                          cumulative_df$case_type=='Deaths',]$pc_change, "% ")
-  })
-  
-  observeEvent({
-    input$date
-    input$map_view
-  }, {
-    if (input$map_view == 'Worldwide') {
-      output$n_recovered <- renderText({
-        covid_dt[Date==input$date & 
-                   Case.Type=='Recovered',]$Cases %>% 
-          sum(na.rm=T) %>% 
-          as.integer() %>% 
-          format(big.mark=',')
-      })
-    } else {
-      output$n_recovered <- renderText({
-        covid_dt[Country.Region==input$map_view & 
-                   Date==input$date& 
-                   Case.Type=='Recovered',]$Cases %>% 
-          sum(na.rm=T) %>% 
-          as.integer() %>% 
-          format(big.mark=',')
-      })
-    }
+    cumulative_dt[region==input$map_view & 
+                    Date==input$date & 
+                    case_type=='Deaths',]$pc_change %>% 
+      str_c(' %')
   })
   
   output$recovered_diff <- renderText({
-    str_c(cumulative_df[cumulative_df$region==input$map_view &
-                          cumulative_df$Date==input$date &
-                          cumulative_df$case_type=='Recovered',]$pc_change, "% ")
+    cumulative_dt[region==input$map_view & 
+                    Date==input$date & 
+                    case_type=='Recovered',]$pc_change %>% 
+      str_c(' %')
   })
   
   output$world_map <- renderLeaflet({
-    leaflet(world, height=25) %>% 
+    leaflet(simple_world, height=25) %>% 
       addPolygons(weight = 1,
                   color = '#f2f2f2',
                   fillColor = '#cccccc',
@@ -326,12 +287,13 @@ server <- function(input, output) {
   update_map <- function(leaflet_map) {
     
     # fx to add bubbles onto map
-    add_bubbles <- function(map, dt, input_date, case_type, color){
+    add_bubbles <- function(map, dt, case_type, color){
       new_map <- map %>% 
         addCircleMarkers(
-          data = dt[Date==input_date & Case.Type==case_type,],
+          # show bubble if at least 100 cases (for performance speed)
+          data = dt[Case.Type==case_type & Cases>=100],
           ~Long, ~Lat,
-          radius = ~Cases.Sqrt / 10,
+          radius = ~Cases.Radius,
           weight = 1,
           color = color,
           fillColor = color,
@@ -348,19 +310,14 @@ server <- function(input, output) {
     if (input$map_view == 'Worldwide') {
       leafletProxy(leaflet_map) %>% 
         clearMarkers() %>%
-        add_bubbles(covid_dt[Map.View==input$map_view], 
-                    input$date, case_type='Confirmed', color='#d4af37') %>% 
-        add_bubbles(covid_dt[Map.View==input$map_view],
-                    input$date, case_type='Recovered',color='#79cdcd') %>% 
-        add_bubbles(covid_dt[Map.View==input$map_view],
-                    input$date, case_type='Deaths',color='#cd5555')
+        add_bubbles(r_covid(), case_type='Confirmed', color='#d4af37') %>% 
+        add_bubbles(r_covid(), case_type='Recovered',color='#79cdcd') %>% 
+        add_bubbles(r_covid(), case_type='Deaths',color='#cd5555')
     } else {
       leafletProxy(leaflet_map) %>% 
         clearMarkers() %>%
-        add_bubbles(covid_dt[Map.View==input$map_view], 
-                    input$date, case_type='Confirmed', color='#d4af37') %>% 
-        add_bubbles(covid_dt[Map.View==input$map_view], 
-                    input$date, case_type='Confirmed', color='#cd5555')
+        add_bubbles(r_covid(), case_type='Confirmed', color='#d4af37') %>% 
+        add_bubbles(r_covid(), case_type='Deaths', color='#cd5555')
     }
   }
   
@@ -382,8 +339,7 @@ server <- function(input, output) {
     input$map_view
   }, {
     output$cumulative <- renderPlot({
-      ggplot(cumulative_df %>% 
-               filter(region==input$map_view, Date<=input$date),
+      ggplot(cumulative_dt[region==input$map_view & Date<=input$date,],
              aes(Date, Total/1e6, col=case_type)) +
         geom_line(size=2, alpha=0.7) +
         scale_color_manual(values = c('Confirmed'='#d4af37',
@@ -400,8 +356,7 @@ server <- function(input, output) {
     input$map_view
   }, {
     output$daily_cases <- renderPlot({
-      ggplot(cumulative_df %>%
-               filter(region==input$map_view, Date<=input$date),
+      ggplot(cumulative_dt[region==input$map_view & Date<=input$date,],
              aes(Date, Daily/1000, fill=case_type)) +
         geom_col() +
         scale_fill_manual(values = c('Confirmed'='#d4af37',
@@ -411,43 +366,7 @@ server <- function(input, output) {
         my_theme +
         theme(legend.position = 'bottom')
     })
-  }, ignoreNULL = FALSE)
-  
-  # observeEvent({
-  #   input$cumulative
-  #   input$map_view
-  # }, {
-  #   output$covid_trend <- renderPlot({
-  #     ggplot(cumulative_df %>% filter(region==input$map_view),
-  #            aes(Date, Total/1e6, col=case_type)) +
-  #       geom_line(size=2, alpha=0.7) +
-  #       scale_color_manual(values = c('Confirmed'='#d4af37',
-  #                                     'Deaths'='#cd5555',
-  #                                     'Recovered'='#79cdcd')) +
-  #       labs(x=NULL, y='Cases\n(Millions)', col=NULL) +
-  #       my_theme + 
-  #       theme(legend.position = 'bottom')
-  #   })
-  # })
-  
-  # observeEvent({
-  #   input$date
-  #   input$daily_cases
-  #   input$map_view
-  # }, {
-  #   output$covid_trend <- renderPlot({
-  #     ggplot(cumulative_df %>% 
-  #              filter(region==input$map_view, Date<=input$date),
-  #            aes(Date, Daily/1000, fill=case_type)) +
-  #       geom_col() +
-  #       scale_fill_manual(values = c('Confirmed'='#d4af37', 
-  #                                     'Deaths'='#cd5555', 
-  #                                     'Recovered'='#79cdcd')) +
-  #       labs(x=NULL, y='Cases\n(Thousands)', fill=NULL) +
-  #       my_theme + 
-  #       theme(legend.position = 'bottom')
-  #   })
-  # }, ignoreNULL = FALSE)
+  })
   
   observeEvent({
     input$map_view
@@ -455,15 +374,14 @@ server <- function(input, output) {
     input$top10_stat
   }, {
     column_name <- case_when(input$top10_stat=='Cases'~'Cases',
-                             input$top10_stat=='Cases by Populace.'~'Cases.Pop',
+                             input$top10_stat=='Cases by Populace'~'Cases.Pop',
                              input$top10_stat=='Mortality Rate'~'Mortality.Rate',
                              input$top10_stat=='Recovery Rate'~'Recovery.Rate')
     
     if(input$map_view=='Worldwide'){
       output$top10_plot <- renderPlot({
-        ggplot(covid_summary_df %>% 
-                 filter(Date==input$date, !is.na(!!as.symbol(column_name))) %>% 
-                 arrange(desc(Date), -!!as.symbol(column_name)) %>% head(10), 
+        ggplot(covid_summary_dt[Date==input$date & !is.na(column_name)] %>% 
+                 arrange(-!!as.symbol(column_name)) %>% head(10), 
                aes(x = reorder(Country.Region, !!as.symbol(column_name)), 
                    y = !!as.symbol(column_name))) +
           geom_col(size=2, width=0.1) +
@@ -477,9 +395,8 @@ server <- function(input, output) {
       })
     } else {
       output$top10_plot <- renderPlot({
-        ggplot(summary_by_province_state_df %>% 
-                 filter(region==input$map_view, Date==input$date) %>% 
-                 arrange(desc(Date), -!!as.symbol(column_name)) %>% head(10), 
+        ggplot(summary_by_province_state_dt[region==input$map_view & Date==input$date] %>% 
+                 arrange(-!!as.symbol(column_name)) %>% head(10), 
                aes(x = reorder(Province.State, !!as.symbol(column_name)), 
                    y = !!as.symbol(column_name))) +
           geom_col(size=2, width=0.1) +
@@ -530,23 +447,3 @@ server <- function(input, output) {
 }
 
 shinyApp(ui, server)
-
-# start_time = Sys.time()
-# a <- confirmed_df %>% 
-#   filter(Date=='2020-03-22')
-# print(Sys.time()-start_time)
-# 
-# a <- lazy_dt(confirmed_df)
-# 
-# start_time = Sys.time()
-# b <- a %>% 
-#   filter(Date=='2020-03-22') %>% 
-#   as.data.frame()
-# print(Sys.time()-start_time)
-# 
-# d <- confirmed_df %>% 
-#   as.data.table()
-# 
-# start_time = Sys.time()
-# e <- d[Date=='2020-03-22',]
-# print(Sys.time()-start_time)
