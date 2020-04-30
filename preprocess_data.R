@@ -166,10 +166,6 @@ covid_by_country <- confirmed_df %>%
   left_join(centroids) %>% 
   mutate(Province.State='', Map.View='Worldwide') %>% 
   select(Map.View, Country.Region, Province.State, Lat, Long, Date, Confirmed, Deaths, Recovered)
-  
-sum(covid_by_country[covid_by_country2$Date=='2020-04-18',]$Confirmed, na.rm=T)
-sum(covid_by_country[covid_by_country2$Date=='2020-04-18',]$Deaths, na.rm=T)
-sum(covid_by_country[covid_by_country2$Date=='2020-04-18',]$Recovered, na.rm=T)
 
 filter_region <- function(df, region){
   case_type <- deparse(substitute(df)) %>% 
@@ -217,11 +213,6 @@ covid_dt <- covid_by_country %>%
 
 saveRDS(covid_dt, 'data/covid_dt.rds')
 
-# save covid data as rds files
-# saveRDS(confirmed_dt, 'data/confirmed_dt.rds')
-# saveRDS(deaths_dt, 'data/deaths_dt.rds')
-# saveRDS(recovered_dt, 'data/recovered_dt.rds')
-
 # make df of cumulative cases by Date ----
 cum_cases <- function(df, case_name, region='Worldwide'){
   if(region=='Worldwide'){
@@ -259,21 +250,6 @@ cumulative_df <- rbind(cum_cases(confirmed_df, 'Confirmed'),
 cumulative_df[is.na(cumulative_df)] <- 0
 
 saveRDS(cumulative_df %>% as.data.table(), 'data/cumulative_dt.rds')
-cumulative_dt <- readRDS('data/cumulative_dt.rds')
-
-ggplot(cumulative_dt[region=='Worldwide',], 
-       aes(Date, Daily/1000)) +
-  geom_col(aes(fill=case_type)) +
-  geom_smooth(aes(col=case_type), se=F, method='loess', size=2, show.legend = F) +
-  scale_fill_manual(values = c('Confirmed'='#d4af37',
-                               'Deaths'='#cd5555',
-                               'Recovered'='#79cdcd')) +
-  scale_color_manual(values = c('Confirmed'='#B48E2D',
-                                'Deaths'='#B24545',
-                                'Recovered'='#62A9A9')) +
-  labs(x=NULL, y='Cases\n(Thousands)', fill=NULL) +
-  my_theme +
-  theme(legend.position = 'bottom')
 # ----
 
 # population by country in 2020
@@ -311,7 +287,9 @@ covid_summary_df <- cases_by_country_df %>%
   ungroup() %>% 
   mutate(Country.Region = as.factor(Country.Region),
          Mortality.Rate = round(Deaths/Cases*100, 2),
-         Recovery.Rate = round(Recovered/Cases*100, 2))
+         Recovery.Rate = round(Recovered/Cases*100, 2),
+         Map.View = 'Worldwide') %>% 
+  select(Region=Country.Region, everything())
 
 saveRDS(covid_summary_df %>% as.data.table(), 'data/covid_summary_dt.rds')
 # ----
@@ -347,8 +325,11 @@ summary_by_state_df <- cases_by_state_df %>%
   ungroup() %>% 
   mutate(Province.State = as.factor(Province.State),
          Mortality.Rate = round(Deaths/Cases*100, 2),
-         region = 'United States') %>% 
-  na.omit()
+         Map.View = 'United States') %>% 
+  na.omit() %>% 
+  mutate(Recovered=NA, Recovery.Rate=NA) %>% 
+  select(Region=Province.State, Date, Cases, Population, Cases.Pop, Deaths, 
+         Recovered, Mortality.Rate, Recovery.Rate, Map.View)
 
 # population by province in 2019
 province_url <- 'https://worldpopulationreview.com/canadian-provinces/'
@@ -381,13 +362,17 @@ summary_by_province_df <- cases_by_province_df %>%
   ungroup() %>% 
   mutate(Province.State = as.factor(Province.State),
          Mortality.Rate = round(Deaths/Cases*100, 2),
-         region = 'Canada') %>% 
-  na.omit()
+         Map.View = 'Canada') %>% 
+  na.omit() %>% 
+  mutate(Recovered=NA, Recovery.Rate=NA) %>% 
+  select(Region=Province.State, Date, Cases, Population, Cases.Pop, Deaths, 
+         Recovered, Mortality.Rate, Recovery.Rate, Map.View)
 
-summary_by_province_state_df <- rbind(summary_by_state_df,
-                                      summary_by_province_df)
+covid_stats_df <- rbind(covid_summary_df,
+                        summary_by_state_df %>% mutate(Map.View='United States'),
+                        summary_by_province_df %>% mutate(Map.View='Canada'))
 
-saveRDS(summary_by_province_state_df %>% as.data.table(), 'data/summary_by_province_state_dt.rds')
+saveRDS(covid_stats_df %>% as.data.table(), 'data/covid_stats_dt.rds')
 
 # STOCKS DATA ----
 

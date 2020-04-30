@@ -22,7 +22,8 @@ cumulative_dt <- readRDS('data/cumulative_dt.rds')
 
 # import covid summaries (for top10 plot)
 covid_summary_dt <- readRDS('data/covid_summary_dt.rds')
-summary_by_province_state_dt <-readRDS('data/summary_by_province_state_dt.rds')
+summary_by_province_state_dt <- readRDS('data/summary_by_province_state_dt.rds')
+covid_stats_dt <- readRDS('data/covid_stats_dt.rds')
 
 # import indices data
 indices_df <- readRDS('data/indices_df.rds')
@@ -373,42 +374,23 @@ server <- function(input, output) {
                              input$top10_stat=='Mortality Rate'~'Mortality.Rate',
                              input$top10_stat=='Recovery Rate'~'Recovery.Rate')
     
-    covid_summary_dt[
-      Date=='2020-04-18' & !is.na('Cases')][order(-Cases)]
+    dt <- covid_stats_dt[Map.View==input$map_view &
+                           Date==input$date & 
+                           !is.na(column_name)]
     
-    if(input$map_view=='Worldwide'){
-      dt <- covid_summary_dt[Date==input$date & !is.na(column_name)]
-      
-      output$top10_plot <- renderPlot({
-        ggplot(dt[order(-dt[[column_name]])] %>% head(10), 
-               aes(x = reorder(Country.Region, !!as.symbol(column_name)), 
-                   y = !!as.symbol(column_name))) +
-          geom_col(size=2, width=0.1) +
-          geom_point(size=3, color='red') +
-          coord_flip() +
-          scale_y_continuous(
-            labels = ifelse(!!as.symbol(column_name) %like% 'Cases', 
-                            scales::comma, function(x) paste0(x, "%"))) +
-          labs(x=NULL, y=input$top10_stat) +
-          my_theme
-      })
-    } else {
-      dt <- summary_by_province_state_dt[region==input$map_view &
-                                           Date==input$date & !is.na(column_name)]
-      
-      output$top10_plot <- renderPlot({
-        ggplot(dt[order(-dt[[column_name]])] %>% head(10), 
-               aes(x = reorder(Province.State, !!as.symbol(column_name)), 
-                   y = !!as.symbol(column_name))) +
-          geom_col(size=2, width=0.1) +
-          geom_point(size=3, color='red') +
-          coord_flip() +
-          scale_y_continuous(labels = scales::comma) +
-          labs(x=NULL, y=input$top10_stat) +
-          my_theme
-      })
-    }
-    
+    output$top10_plot <- renderPlot({
+      ggplot(dt[order(-dt[[column_name]])] %>% head(10), 
+             aes(x = reorder(Region, !!as.symbol(column_name)), 
+                 y = !!as.symbol(column_name))) +
+        geom_col(size=2, width=0.1) +
+        geom_point(size=3, color='red') +
+        coord_flip() +
+        scale_y_continuous(
+          labels = ifelse(!!as.symbol(column_name) %like% 'Cases', 
+                          scales::comma, function(x) paste0(x, "%"))) +
+        labs(x=NULL, y=input$top10_stat) +
+        my_theme
+    })
   })
 
   output$index_plot <- renderPlot({
