@@ -44,13 +44,31 @@ if(!file.exists('data/usa_map.rds') | !file.exists('data/usa_centroids.rds')){
     select(Lat = y, Long = x) %>% 
     rownames_to_column('Province.State')
   
-  saveRDS(usa, 'data/usa_map.rds')
+  usa_simple <- rgeos::gSimplify(usa, tol=0.1)
+  
+  saveRDS(usa_simple, 'data/usa_map.rds')
   saveRDS(usa_centroids, 'data/usa_centroids.rds')
 }
 
 # https://thomson.carto.com/tables/canada_provinces/public/map
 if(!file.exists('data/canada_map.rds')){
-  canada <- rgdal::readOGR('data/canada_provinces.geojson')
+  canada <- rgdal::readOGR('data/canada_provinces.geojson') %>% 
+    rgeos::gSimplify(tol=0.5)
+  
+  leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
+    # addPolygons(data = simple_world,
+    #             weight = 1,
+    #             color = '#f2f2f2',
+    #             fillColor = '#1D2626',
+    #             fillOpacity = 1) %>% 
+    addPolygons(data = canada,
+                weight = 1,
+                color = '#1D2626',
+                fillColor = '#cccccc',
+                fillOpacity = 1) %>%
+    setView(lng=-100, lat=60, zoom=3) %>% 
+    setMaxBounds(lng1=-130, lng2=-70, lat1=30, lat2=90)
+  
   saveRDS(canada, 'data/canada_map.rds')
 }
 # ----
@@ -156,7 +174,7 @@ sum(covid_by_country[covid_by_country2$Date=='2020-04-18',]$Recovered, na.rm=T)
 filter_region <- function(df, region){
   case_type <- deparse(substitute(df)) %>% 
     str_remove('_df') %>% 
-    toTitleCase()
+    tools::toTitleCase()
   
   region_df <- df %>% 
     filter(Country.Region==region) %>% 
@@ -238,9 +256,24 @@ cumulative_df <- rbind(cum_cases(confirmed_df, 'Confirmed'),
   mutate(pc_change = round(Daily / lag(Total)*100, 2),
          case_type = factor(case_type, levels=c('Confirmed', 'Recovered', 'Deaths')))
 
-cumulative_df[is.na(cumulative_df)] <- 0 
+cumulative_df[is.na(cumulative_df)] <- 0
 
 saveRDS(cumulative_df %>% as.data.table(), 'data/cumulative_dt.rds')
+cumulative_dt <- readRDS('data/cumulative_dt.rds')
+
+ggplot(cumulative_dt[region=='Worldwide',], 
+       aes(Date, Daily/1000)) +
+  geom_col(aes(fill=case_type)) +
+  geom_smooth(aes(col=case_type), se=F, method='loess', size=2, show.legend = F) +
+  scale_fill_manual(values = c('Confirmed'='#d4af37',
+                               'Deaths'='#cd5555',
+                               'Recovered'='#79cdcd')) +
+  scale_color_manual(values = c('Confirmed'='#B48E2D',
+                                'Deaths'='#B24545',
+                                'Recovered'='#62A9A9')) +
+  labs(x=NULL, y='Cases\n(Thousands)', fill=NULL) +
+  my_theme +
+  theme(legend.position = 'bottom')
 # ----
 
 # population by country in 2020

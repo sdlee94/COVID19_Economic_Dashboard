@@ -7,9 +7,6 @@ library(leaflet)
 library(rworldmap)
 
 # DATA ----
-# confirmed_df <- readRDS('data/confirmed_df.rds')
-# deaths_df <- readRDS('data/deaths_df.rds')
-# recovered_df <- readRDS('data/recovered_df.rds')
 
 # import maps
 world <- readRDS('data/world_map.rds')
@@ -57,7 +54,7 @@ my_theme <- theme(
 
 # new page layout with tabs at the top
 ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
-                 
+  
   # first tab of the layout, recorded cases and world map
   tabPanel("Recorded Cases", 
     column(8, style='padding-left:50px;',
@@ -71,7 +68,6 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
             ),
             span(h3(textOutput("n_confirmed")), style='color:#d4af37'),
             div(id='diff', h4(textOutput("confirmed_diff"), "↑"), style='color:green')
-            #span(h4(textOutput("confirmed_diff"), style='display:inline'), "↑",  style='color:green')
             #tags$p(class = "sidebar-percentage", "##%")
           ),
           tags$div(
@@ -180,7 +176,10 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
         7, "placeholder"
       )
     )
-  )
+  ),
+  
+  #prevent reactive elements from flickering
+  tags$style(type="text/css", ".recalculating { opacity: 1.0; }")
 )
 
 server <- function(input, output) {
@@ -194,52 +193,44 @@ server <- function(input, output) {
   })
   
   output$n_confirmed <- renderText({ 
-    #r_covid()[Case.Type=='Confirmed']$Cases %>%
-    covid_dt[Map.View==input$map_view & 
-               Date==input$date &
-               Case.Type=='Confirmed']$Cases %>%  
+    r_covid()[Case.Type=='Confirmed']$Cases %>% 
       sum(na.rm=T) %>% 
       as.integer() %>% 
       format(big.mark=',')
   })
   
   output$n_recovered <- renderText({ 
-    #r_covid()[
-    covid_dt[Map.View==input$map_view & 
-               Date==input$date & 
-               Case.Type=='Recovered']$Cases %>%
+    r_covid()[Case.Type=='Recovered']$Cases %>%
       sum(na.rm=T) %>% 
       as.integer() %>% 
       format(big.mark=',')
   })
   
   output$n_deaths <- renderText({ 
-    covid_dt[Map.View==input$map_view & 
-               Date==input$date & 
-               Case.Type=='Deaths']$Cases %>% 
+    r_covid()[Case.Type=='Deaths']$Cases %>% 
       sum(na.rm=T) %>% 
       as.integer() %>% 
       format(big.mark=',')
   })
   
   output$confirmed_diff <- renderText({
-    cumulative_dt[region==input$map_view & 
-                    Date==input$date & 
-                    case_type=='Confirmed',]$pc_change %>% 
+    cumulative_dt[region==input$map_view &
+                    Date==input$date &
+                    case_type=='Confirmed',]$pc_change %>%
       str_c(' %')
   })
   
   output$deaths_diff <- renderText({
-    cumulative_dt[region==input$map_view & 
-                    Date==input$date & 
-                    case_type=='Deaths',]$pc_change %>% 
+    cumulative_dt[region==input$map_view &
+                    Date==input$date &
+                    case_type=='Deaths',]$pc_change %>%
       str_c(' %')
   })
   
   output$recovered_diff <- renderText({
-    cumulative_dt[region==input$map_view & 
-                    Date==input$date & 
-                    case_type=='Recovered',]$pc_change %>% 
+    cumulative_dt[region==input$map_view &
+                    Date==input$date &
+                    case_type=='Recovered',]$pc_change %>%
       str_c(' %')
   })
   
@@ -254,11 +245,11 @@ server <- function(input, output) {
   
   output$canada_map <- renderLeaflet({
     leaflet(height=25, options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
-      addPolygons(data = world,
+      addPolygons(data = simple_world,
                   weight = 1,
                   color = '#f2f2f2',
                   fillColor = '#1D2626',
-                  fillOpacity = 1) %>% 
+                  fillOpacity = 1) %>%
       addPolygons(data = canada,
                   weight = 1,
                   color = '#f2f2f2',
@@ -270,11 +261,11 @@ server <- function(input, output) {
   
   output$usa_map <- renderLeaflet({
     leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
-      addPolygons(data = world,
+      addPolygons(data = simple_world,
                   weight = 1,
                   color = '#f2f2f2',
                   fillColor = '#1D2626',
-                  fillOpacity = 1) %>% 
+                  fillOpacity = 1) %>%
       addPolygons(data = usa,
                   weight = 1,
                   color = '#f2f2f2',
@@ -287,11 +278,10 @@ server <- function(input, output) {
   update_map <- function(leaflet_map) {
     
     # fx to add bubbles onto map
-    add_bubbles <- function(map, dt, case_type, color){
+    add_bubbles <- function(map, dt, color){
       new_map <- map %>% 
         addCircleMarkers(
-          # show bubble if at least 100 cases (for performance speed)
-          data = dt[Case.Type==case_type & Cases>=100],
+          data = dt,
           ~Long, ~Lat,
           radius = ~Cases.Radius,
           weight = 1,
@@ -300,9 +290,9 @@ server <- function(input, output) {
           fillOpacity = 0.6
           # label = sprintf(
           #   '<strong>%s</strong>, %s<br/>%s Confirmed<br/>',
-          #   r_confirmed()$Country.Region,
-          #   r_confirmed()$Province.State,
-          #   format(r_confirmed()$Cases, big.mark=',')) %>% lapply(htmltools::HTML)
+          #   dt$Country.Region,
+          #   dt$Province.State,
+          #   format(dt$Cases, big.mark=',')) %>% lapply(htmltools::HTML)
         )
       return(new_map)
     }
@@ -310,14 +300,15 @@ server <- function(input, output) {
     if (input$map_view == 'Worldwide') {
       leafletProxy(leaflet_map) %>% 
         clearMarkers() %>%
-        add_bubbles(r_covid(), case_type='Confirmed', color='#d4af37') %>% 
-        add_bubbles(r_covid(), case_type='Recovered',color='#79cdcd') %>% 
-        add_bubbles(r_covid(), case_type='Deaths',color='#cd5555')
+        # show bubble if at least 100 cases (for performance speed)
+        add_bubbles(r_covid()[Case.Type=='Confirmed' & Cases>=100], color='#d4af37') %>% 
+        add_bubbles(r_covid()[Case.Type=='Recovered' & Cases>=100], color='#79cdcd') %>% 
+        add_bubbles(r_covid()[Case.Type=='Deaths' & Cases>=100], color='#cd5555')
     } else {
       leafletProxy(leaflet_map) %>% 
         clearMarkers() %>%
-        add_bubbles(r_covid(), case_type='Confirmed', color='#d4af37') %>% 
-        add_bubbles(r_covid(), case_type='Deaths', color='#cd5555')
+        add_bubbles(r_covid()[Case.Type=='Confirmed' & Cases>=100], color='#d4af37') %>% 
+        add_bubbles(r_covid()[Case.Type=='Deaths' & Cases>=100], color='#cd5555')
     }
   }
   
@@ -357,11 +348,15 @@ server <- function(input, output) {
   }, {
     output$daily_cases <- renderPlot({
       ggplot(cumulative_dt[region==input$map_view & Date<=input$date,],
-             aes(Date, Daily/1000, fill=case_type)) +
-        geom_col() +
+             aes(Date, Daily/1000)) +
+        geom_col(aes(fill=case_type)) +
+        geom_smooth(aes(col=case_type), se=F, method='loess', size=1.5, show.legend = F) +
         scale_fill_manual(values = c('Confirmed'='#d4af37',
-                                      'Deaths'='#cd5555',
-                                      'Recovered'='#79cdcd')) +
+                                     'Deaths'='#cd5555',
+                                     'Recovered'='#79cdcd')) +
+        scale_color_manual(values = c('Confirmed'='#B48E2D',
+                                      'Deaths'='#B24545',
+                                      'Recovered'='#62A9A9')) +
         labs(x=NULL, y='Cases\n(Thousands)', fill=NULL) +
         my_theme +
         theme(legend.position = 'bottom')
@@ -378,10 +373,14 @@ server <- function(input, output) {
                              input$top10_stat=='Mortality Rate'~'Mortality.Rate',
                              input$top10_stat=='Recovery Rate'~'Recovery.Rate')
     
+    covid_summary_dt[
+      Date=='2020-04-18' & !is.na('Cases')][order(-Cases)]
+    
     if(input$map_view=='Worldwide'){
+      dt <- covid_summary_dt[Date==input$date & !is.na(column_name)]
+      
       output$top10_plot <- renderPlot({
-        ggplot(covid_summary_dt[Date==input$date & !is.na(column_name)] %>% 
-                 arrange(-!!as.symbol(column_name)) %>% head(10), 
+        ggplot(dt[order(-dt[[column_name]])] %>% head(10), 
                aes(x = reorder(Country.Region, !!as.symbol(column_name)), 
                    y = !!as.symbol(column_name))) +
           geom_col(size=2, width=0.1) +
@@ -394,9 +393,11 @@ server <- function(input, output) {
           my_theme
       })
     } else {
+      dt <- summary_by_province_state_dt[region==input$map_view &
+                                           Date==input$date & !is.na(column_name)]
+      
       output$top10_plot <- renderPlot({
-        ggplot(summary_by_province_state_dt[region==input$map_view & Date==input$date] %>% 
-                 arrange(-!!as.symbol(column_name)) %>% head(10), 
+        ggplot(dt[order(-dt[[column_name]])] %>% head(10), 
                aes(x = reorder(Province.State, !!as.symbol(column_name)), 
                    y = !!as.symbol(column_name))) +
           geom_col(size=2, width=0.1) +
