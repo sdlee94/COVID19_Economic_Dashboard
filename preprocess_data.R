@@ -1,8 +1,6 @@
 library(tidyverse)
 library(data.table)
 library(reticulate)
-#library(httr)
-#library(rvest)
 
 # MAPS ----
 # spatial dataframe of the world
@@ -54,20 +52,6 @@ if(!file.exists('data/usa_map.rds') | !file.exists('data/usa_centroids.rds')){
 if(!file.exists('data/canada_map.rds')){
   canada <- rgdal::readOGR('data/canada_provinces.geojson') %>% 
     rgeos::gSimplify(tol=0.5)
-  
-  leaflet(options = leafletOptions(minZoom=3, maxZoom=6)) %>% 
-    # addPolygons(data = simple_world,
-    #             weight = 1,
-    #             color = '#f2f2f2',
-    #             fillColor = '#1D2626',
-    #             fillOpacity = 1) %>% 
-    addPolygons(data = canada,
-                weight = 1,
-                color = '#1D2626',
-                fillColor = '#cccccc',
-                fillOpacity = 1) %>%
-    setView(lng=-100, lat=60, zoom=3) %>% 
-    setMaxBounds(lng1=-130, lng2=-70, lat1=30, lat2=90)
   
   saveRDS(canada, 'data/canada_map.rds')
 }
@@ -195,23 +179,51 @@ filter_region <- function(df, region){
   return(region_df)
 }
 
+# dataframes to fill in missing dates from CAN and US ----
+missing_dates <- seq(as.Date('2020-01-22'), as.Date('2020-01-27'), by='days')
+
+filler_covid_df <- data.frame(Map.View=rep(c('Canada', 'United States'), 6) %>% 
+                                factor(levels=c('Worldwide', 'Canada', 'United States')),
+                              Region=NA, Lat=NA, Long=NA,
+                              Date=rep(missing_dates, each=2),
+                              Confirmed=rep(0, 12),
+                              Deaths=rep(0, 12),
+                              Recovered=rep(0, 12))
+# ----
+
 covid_dt <- covid_by_country %>% 
-  rbind(filter_region(confirmed_df, 'United States') %>% 
+  rename(Region=Country.Region) %>% 
+  select(-Province.State) %>% 
+  bind_rows(filter_region(confirmed_df, 'United States') %>% 
           left_join(filter_region(deaths_df, 'United States')) %>% 
           # use countrywide recovered since state level data is NA
           left_join(covid_by_country %>% select(Country.Region, Date, Recovered)) %>% 
           # ensure only 1 row has the recovered value for each Date to avoid duplicate
-          mutate(Recovered = if_else(Province.State=='Washington', Recovered, as.integer(0)))) %>% 
-  rbind(filter_region(confirmed_df, 'Canada') %>% 
+          mutate(Recovered = if_else(Province.State=='Washington', Recovered, as.integer(0))) %>% 
+          rename(Region=Province.State) %>% select(-Country.Region)) %>% 
+  bind_rows(filter_region(confirmed_df, 'Canada') %>% 
           left_join(filter_region(deaths_df, 'Canada')) %>% 
           # use countrywide recovered since province level data is NA
           left_join(covid_by_country %>% select(Country.Region, Date, Recovered)) %>% 
-          mutate(Recovered = if_else(Province.State=='Ontario', Recovered, as.integer(0)))) %>% 
-  gather(Case.Type, Cases, Confirmed, Deaths, Recovered) %>% 
-  mutate(Cases.Radius = round(sqrt(Cases)/12, 2)) %>% 
+          mutate(Recovered = if_else(Province.State=='Ontario', Recovered, as.integer(0))) %>% 
+          rename(Region=Province.State) %>% select(-Country.Region)) %>%
+  ungroup() %>% 
+  #bind_rows(filler_covid_df) %>% 
+  mutate(Confirmed.Radius = round(Confirmed^(1/4), 2),
+         Deaths.Radius = round(Deaths^(1/4), 2),
+         Recovered.Radius = round(Recovered^(1/4), 2)) %>% 
   as.data.table()
 
 saveRDS(covid_dt, 'data/covid_dt.rds')
+
+a <- filter_region(confirmed_df, 'United States') %>% 
+  left_join(filter_region(deaths_df, 'United States')) %>% 
+  # use countrywide recovered since state level data is NA
+  left_join(covid_by_country %>% select(Country.Region, Date, Recovered)) %>% 
+  # ensure only 1 row has the recovered value for each Date to avoid duplicate
+  mutate(Recovered = if_else(Province.State=='Washington', Recovered, as.integer(0))) %>% 
+  rename(Region=Province.State) %>% select(-Country.Region)
+
 
 # make df of cumulative cases by Date ----
 cum_cases <- function(df, case_name, region='Worldwide'){

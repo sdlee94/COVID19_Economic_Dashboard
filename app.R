@@ -21,8 +21,8 @@ covid_dt <- readRDS('data/covid_dt.rds')
 cumulative_dt <- readRDS('data/cumulative_dt.rds')
 
 # import covid summaries (for top10 plot)
-covid_summary_dt <- readRDS('data/covid_summary_dt.rds')
-summary_by_province_state_dt <- readRDS('data/summary_by_province_state_dt.rds')
+#covid_summary_dt <- readRDS('data/covid_summary_dt.rds')
+#summary_by_province_state_dt <- readRDS('data/summary_by_province_state_dt.rds')
 covid_stats_dt <- readRDS('data/covid_stats_dt.rds')
 
 # import indices data
@@ -110,6 +110,9 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
           conditionalPanel(
             condition = "input.map_view == 'United States'",
             leafletOutput("usa_map", height = 450)
+          ),
+          fixedPanel(
+            top=10, left=10, right=10, width=10
           )
         )
       ),
@@ -194,21 +197,21 @@ server <- function(input, output) {
   })
   
   output$n_confirmed <- renderText({ 
-    r_covid()[Case.Type=='Confirmed']$Cases %>% 
+    r_covid()$Confirmed %>% 
       sum(na.rm=T) %>% 
       as.integer() %>% 
       format(big.mark=',')
   })
   
   output$n_recovered <- renderText({ 
-    r_covid()[Case.Type=='Recovered']$Cases %>%
+    r_covid()$Recovered %>%
       sum(na.rm=T) %>% 
       as.integer() %>% 
       format(big.mark=',')
   })
   
   output$n_deaths <- renderText({ 
-    r_covid()[Case.Type=='Deaths']$Cases %>% 
+    r_covid()$Deaths %>% 
       sum(na.rm=T) %>% 
       as.integer() %>% 
       format(big.mark=',')
@@ -288,12 +291,13 @@ server <- function(input, output) {
           weight = 1,
           color = color,
           fillColor = color,
-          fillOpacity = 0.6
-          # label = sprintf(
-          #   '<strong>%s</strong>, %s<br/>%s Confirmed<br/>',
-          #   dt$Country.Region,
-          #   dt$Province.State,
-          #   format(dt$Cases, big.mark=',')) %>% lapply(htmltools::HTML)
+          fillOpacity = 0.6,
+          label = sprintf(
+            '<strong>%s</strong> <br/>%s Confirmed<br/> %s Recovered<br/> %s Deaths<br/>',
+            dt$Region,
+            format(dt$Confirmed, big.mark=','),
+            format(dt$Recovered, big.mark=','),
+            format(dt$Deaths, big.mark=',')) %>% lapply(htmltools::HTML)
         )
       return(new_map)
     }
@@ -302,14 +306,19 @@ server <- function(input, output) {
       leafletProxy(leaflet_map) %>% 
         clearMarkers() %>%
         # show bubble if at least 100 cases (for performance speed)
-        add_bubbles(r_covid()[Case.Type=='Confirmed' & Cases>=100], color='#d4af37') %>% 
-        add_bubbles(r_covid()[Case.Type=='Recovered' & Cases>=100], color='#79cdcd') %>% 
-        add_bubbles(r_covid()[Case.Type=='Deaths' & Cases>=100], color='#cd5555')
+        add_bubbles(r_covid() %>% 
+                      rename(Cases.Radius=Confirmed.Radius), color='#d4af37') %>% 
+        add_bubbles(r_covid() %>%
+                      rename(Cases.Radius=Recovered.Radius), color='#79cdcd') %>%
+        add_bubbles(r_covid() %>%
+                      rename(Cases.Radius=Deaths.Radius), color='#cd5555')
     } else {
       leafletProxy(leaflet_map) %>% 
         clearMarkers() %>%
-        add_bubbles(r_covid()[Case.Type=='Confirmed' & Cases>=100], color='#d4af37') %>% 
-        add_bubbles(r_covid()[Case.Type=='Deaths' & Cases>=100], color='#cd5555')
+        add_bubbles(r_covid()[Confirmed>=100] %>% 
+                      rename(Cases.Radius=Confirmed.Radius), color='#d4af37') %>% 
+        add_bubbles(r_covid()[Deaths>=100] %>% 
+                      rename(Cases.Radius=Deaths.Radius), color='#cd5555')
     }
   }
   
