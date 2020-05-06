@@ -5,6 +5,7 @@ library(shiny)
 library(shinyWidgets)
 library(leaflet)
 library(rworldmap)
+library(patchwork)
 
 # DATA ----
 
@@ -21,9 +22,10 @@ covid_dt <- readRDS('data/covid_dt.rds')
 cumulative_dt <- readRDS('data/cumulative_dt.rds')
 
 # import covid summaries (for top10 plot)
-#covid_summary_dt <- readRDS('data/covid_summary_dt.rds')
-#summary_by_province_state_dt <- readRDS('data/summary_by_province_state_dt.rds')
 covid_stats_dt <- readRDS('data/covid_stats_dt.rds')
+
+# import GDP data
+gdp_dt <- readRDS('data/gdp_dt.rds')
 
 # import indices data
 indices_df <- readRDS('data/indices_df.rds')
@@ -55,12 +57,16 @@ my_theme <- theme(
 
 # new page layout with tabs at the top
 ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
-  
+                 
   # first tab of the layout, recorded cases and world map
-  tabPanel("Recorded Cases", 
+  tabPanel("Pandemic", 
+           
+    #prevent reactive elements from flickering
+    tags$style(type="text/css", ".recalculating { opacity: 1.0; }"),
+           
     column(8, style='padding-left:50px;',
       fluidRow(
-        column(3, #style='padding-left:50px;',
+        column(3,
           tags$head(tags$style('#diff * {display:inline;}')),
           tags$div(
             class = "sidebar-container",
@@ -88,9 +94,9 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
             div(id='diff', h4(textOutput("recovered_diff"), "↑"), style='color:green')
             #tags$p(class = "sidebar-percentage", "##%")
           ),
-          tags$footer(class = "sidebar-date-container", 
-            tags$p(class = "sidebar-date", textOutput("show_date"))
-          ),
+          # tags$footer(class = "sidebar-date-container", 
+          #   tags$p(class = "sidebar-date", textOutput("show_date"))
+          # ),
           tags$a(href='https://github.com/CSSEGISandData/COVID-19', 
                  'Powered by John Hopkins Data')
         ),
@@ -111,8 +117,11 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
             condition = "input.map_view == 'United States'",
             leafletOutput("usa_map", height = 450)
           ),
-          fixedPanel(
-            top=10, left=10, right=10, width=10
+          absolutePanel(
+            bottom=5, left=20, width=300, draggable=T,
+            div(
+              style= 'font-weight:bold',
+              h2(textOutput('show_date')))
           )
         )
       ),
@@ -149,41 +158,72 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
     )
   ),
   
-  # second tab of the layout, economy data and chart
-  tabPanel("Economy",
-    column(8, style='padding-left:50px;',
-      column(3, style='padding-left:50px;',
-        span(h3("DJI"), style='color:#000000'),
-        span(h3("GSPC"), style='color:#000000'),
-        span(h3("IXIC"), style='color:#000000')
-      ),
-      column(9,
-        plotOutput('index_plot'),
-        plotOutput('commodities_plot')
-      )
-    ),
-    column(4, style='padding-rightt:50px;',
-      plotOutput('unemp_plot')
-    )
-  ),
-  
-  # third tab of the layout, placeholder for commodities data
-  tabPanel("Commodities", 
+  # impact of COVID-19 on GDP
+  tabPanel('GDP',
     fluidRow(
-      column(1),
-      column(3,
-        span(h3("Natural Gas"), style='color:#d4af37'),
-        span(h3("Gold"), style='color:#79cdcd'),
-        span(h3("Cotton"), style='color:#cd5555')
+      column(3, style='padding-left:50px;',
+        tags$style('#tab_select { font-size: 18px;}'),
+        div(id='tab_select',
+          selectInput('gdp_region', label = NULL, 
+                      choices = c('United States', 'Canada'))
+        ),
+        tableOutput('gdp_table')
       ),
-      column(
-        7, "placeholder"
+      column(9, style='padding-right:50px;',
+        plotOutput('gdp_growth_plot', height=600)
       )
     )
   ),
   
-  #prevent reactive elements from flickering
-  tags$style(type="text/css", ".recalculating { opacity: 1.0; }")
+  # impact of COVID-19 on employment
+  tabPanel('Employment',
+    fluidRow(
+      column(3, style='padding-left:50px;'),
+      column(9, style='padding-right:50px;',
+             plotOutput('unemp_plot')
+      )
+    )
+  ),
+  
+  # impact of COVID-19 on the Stock Market
+  tabPanel('Stock Market',
+           fluidRow(
+             column(3, style='padding-left:50px;'),
+             column(9, style='padding-right:50px;',
+                    plotOutput('stock_plot')
+             )
+           )
+  )
+    # column(8, style='padding-left:50px;',
+    #   column(3, style='padding-left:50px;',
+    #     span(h3("DJI"), style='color:#000000'),
+    #     span(h3("GSPC"), style='color:#000000'),
+    #     span(h3("IXIC"), style='color:#000000')
+    #   ),
+    #   column(9,
+    #     plotOutput('index_plot'),
+    #     plotOutput('commodities_plot')
+    #   )
+    # ),
+    # column(4, style='padding-right:50px;',
+    #   plotOutput('unemp_plot'),
+    #   plotOutput('unemp_claim_plot')
+    # )
+  
+  # # third tab of the layout, placeholder for commodities data
+  # tabPanel("Commodities", 
+  #   fluidRow(
+  #     column(1),
+  #     column(3,
+  #       span(h3("Natural Gas"), style='color:#d4af37'),
+  #       span(h3("Gold"), style='color:#79cdcd'),
+  #       span(h3("Cotton"), style='color:#cd5555')
+  #     ),
+  #     column(
+  #       7, "placeholder"
+  #     )
+  #   )
+  # ),
 )
 
 server <- function(input, output) {
@@ -244,6 +284,8 @@ server <- function(input, output) {
                   color = '#f2f2f2',
                   fillColor = '#cccccc',
                   fillOpacity = 1) %>% 
+      #addPopups(-120, 40, input$date) %>% 
+      #addLegend('bottomleft', title=input$date, colors='black') %>%
       setView(lng=10, lat=30, zoom=2)
   })
   
@@ -259,6 +301,7 @@ server <- function(input, output) {
                   color = '#f2f2f2',
                   fillColor = '#cccccc',
                   fillOpacity = 1) %>%
+      #addLegend('bottomleft', title=input$date, colors='black') %>% 
       setView(lng=-100, lat=60, zoom=3) %>% 
       setMaxBounds(lng1=-130, lng2=-70, lat1=30, lat2=90)
   })
@@ -283,6 +326,13 @@ server <- function(input, output) {
     
     # fx to add bubbles onto map
     add_bubbles <- function(map, dt, color){
+      # bubble_label <- ifelse(!is_empty(dt$Map.View), sprintf(
+      #   '<strong>%s</strong> <br/>%s Confirmed<br/> %s Recovered<br/> %s Deaths<br/>',
+      #   Region,
+      #   format(dt$Confirmed, big.mark=','),
+      #   format(dt$Recovered, big.mark=','),
+      #   format(dt$Deaths, big.mark=',')) %>% lapply(htmltools::HTML), F)
+      
       new_map <- map %>% 
         addCircleMarkers(
           data = dt,
@@ -291,13 +341,8 @@ server <- function(input, output) {
           weight = 1,
           color = color,
           fillColor = color,
-          fillOpacity = 0.6,
-          label = sprintf(
-            '<strong>%s</strong> <br/>%s Confirmed<br/> %s Recovered<br/> %s Deaths<br/>',
-            dt$Region,
-            format(dt$Confirmed, big.mark=','),
-            format(dt$Recovered, big.mark=','),
-            format(dt$Deaths, big.mark=',')) %>% lapply(htmltools::HTML)
+          fillOpacity = 0.6#,
+          #label = bubble_label
         )
       return(new_map)
     }
@@ -305,7 +350,6 @@ server <- function(input, output) {
     if (input$map_view == 'Worldwide') {
       leafletProxy(leaflet_map) %>% 
         clearMarkers() %>%
-        # show bubble if at least 100 cases (for performance speed)
         add_bubbles(r_covid() %>% 
                       rename(Cases.Radius=Confirmed.Radius), color='#d4af37') %>% 
         add_bubbles(r_covid() %>%
@@ -315,9 +359,9 @@ server <- function(input, output) {
     } else {
       leafletProxy(leaflet_map) %>% 
         clearMarkers() %>%
-        add_bubbles(r_covid()[Confirmed>=100] %>% 
+        add_bubbles(r_covid() %>% 
                       rename(Cases.Radius=Confirmed.Radius), color='#d4af37') %>% 
-        add_bubbles(r_covid()[Deaths>=100] %>% 
+        add_bubbles(r_covid() %>% 
                       rename(Cases.Radius=Deaths.Radius), color='#cd5555')
     }
   }
@@ -401,7 +445,26 @@ server <- function(input, output) {
         my_theme
     })
   })
-
+  
+  output$gdp_growth_plot <- renderPlot({
+    ggplot(gdp_dt[gdp_dt$Region==input$gdp_region], aes(Date, Growth.Rate)) +
+      geom_col(aes(fill=Growth.Rate>0)) +
+      scale_fill_manual(values=c('TRUE'='limegreen', 'FALSE'='#D41159')) +
+      scale_x_date(date_labels='%Y', 
+                   breaks = seq(as.Date('2000-01-01'), as.Date('2020-01-01'), by='years')) +
+      labs(x=NULL, y='GDP Growth Rate') +
+      my_theme +
+      theme(axis.text.x = element_text(angle=45, hjust=1),
+            legend.position='none')
+  })
+  
+  output$gdp_table <- renderTable(
+    gdp_dt[Region==input$gdp_region & Date>='2019-01-01', list(Date, GDP)] %>% 
+      mutate(Date=zoo::as.yearqtr(Date, format='%Y-%m-%d')) %>% 
+      column_to_rownames('Date') %>% 
+      t()
+  )
+  
   output$index_plot <- renderPlot({
     ggplot(indices_df %>% filter(Index.Name %in% c('Dow Jones', 'Nasdaq', 'S&P 500')),
            aes(x=Date, y=pc_change, col=Index.Name)) +
@@ -431,11 +494,44 @@ server <- function(input, output) {
     ggplot(emp_df %>% filter(Country.Code %in% c('CAN', 'USA')), 
            aes(Date, Unemp.Rate, col=Country.Code)) +
       geom_line(size = 1.5) +
+      scale_x_date(date_labels='%Y', 
+                   breaks=seq(min(emp_df$Date), max(emp_df$Date), by='2 years')) +
       labs(x=NULL, y='Unemployment Rate', col=NULL) +
       my_theme +
       theme(axis.text.x = element_text(angle=45, hjust=1),
             legend.position = 'top')
   })
+  
+  output$unemp_claim_plot <- renderPlot({
+    ggplot(jobless_claim_df, aes(Date, Unemp.Insur.Claim/1e6)) +
+      geom_col() +
+      geom_hline(yintercept=0.661, color='red', size=1.5, linetype='dashed') +
+      scale_x_date(date_labels='%b-%d', 
+                   breaks=seq(as.Date('2020-01-11'), as.Date('2020-04-25'), by='weeks')) +
+      scale_y_continuous(labels = scales::comma) +
+      labs(x=NULL, y='Jobless Claims\n(millions)') +
+      my_theme +
+      theme(axis.text.x = element_text(angle=45, hjust=1))
+  })
+  p1 <- ggplot(emp_df %>% filter(Country.Code %in% c('CAN', 'USA')), 
+               aes(Date, Unemp.Rate, col=Country.Code)) +
+    geom_line(size = 1.5) +
+    scale_x_date(date_labels='%Y', 
+                 breaks=seq(min(emp_df$Date), max(emp_df$Date), by='2 years')) +
+    labs(x=NULL, y='Unemployment Rate', col=NULL) +
+    my_theme +
+    theme(axis.text.x = element_text(angle=45, hjust=1),
+          legend.position = 'top')
+  
+  p2 <- ggplot(jobless_claim_df, aes(Date, Unemp.Insur.Claim/1e6)) +
+    geom_col() +
+    geom_hline(yintercept=0.661, color='red', size=1.5, linetype='dashed') +
+    scale_x_date(date_labels='%b-%d', 
+                 breaks=seq(min(jobless_claim_df$Date), max(jobless_claim_df$Date), by='2 weeks')) +
+    scale_y_continuous(labels = scales::comma) +
+    labs(x=NULL, y='Jobless Claims\n(millions)') +
+    my_theme +
+    theme(axis.text.x = element_text(angle=45, hjust=1))
 }
 
 shinyApp(ui, server)

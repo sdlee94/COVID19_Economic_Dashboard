@@ -179,18 +179,6 @@ filter_region <- function(df, region){
   return(region_df)
 }
 
-# dataframes to fill in missing dates from CAN and US ----
-missing_dates <- seq(as.Date('2020-01-22'), as.Date('2020-01-27'), by='days')
-
-filler_covid_df <- data.frame(Map.View=rep(c('Canada', 'United States'), 6) %>% 
-                                factor(levels=c('Worldwide', 'Canada', 'United States')),
-                              Region=NA, Lat=NA, Long=NA,
-                              Date=rep(missing_dates, each=2),
-                              Confirmed=rep(0, 12),
-                              Deaths=rep(0, 12),
-                              Recovered=rep(0, 12))
-# ----
-
 covid_dt <- covid_by_country %>% 
   rename(Region=Country.Region) %>% 
   select(-Province.State) %>% 
@@ -208,22 +196,12 @@ covid_dt <- covid_by_country %>%
           mutate(Recovered = if_else(Province.State=='Ontario', Recovered, as.integer(0))) %>% 
           rename(Region=Province.State) %>% select(-Country.Region)) %>%
   ungroup() %>% 
-  #bind_rows(filler_covid_df) %>% 
   mutate(Confirmed.Radius = round(Confirmed^(1/4), 2),
          Deaths.Radius = round(Deaths^(1/4), 2),
          Recovered.Radius = round(Recovered^(1/4), 2)) %>% 
   as.data.table()
 
 saveRDS(covid_dt, 'data/covid_dt.rds')
-
-a <- filter_region(confirmed_df, 'United States') %>% 
-  left_join(filter_region(deaths_df, 'United States')) %>% 
-  # use countrywide recovered since state level data is NA
-  left_join(covid_by_country %>% select(Country.Region, Date, Recovered)) %>% 
-  # ensure only 1 row has the recovered value for each Date to avoid duplicate
-  mutate(Recovered = if_else(Province.State=='Washington', Recovered, as.integer(0))) %>% 
-  rename(Region=Province.State) %>% select(-Country.Region)
-
 
 # make df of cumulative cases by Date ----
 cum_cases <- function(df, case_name, region='Worldwide'){
@@ -386,8 +364,52 @@ covid_stats_df <- rbind(covid_summary_df,
 
 saveRDS(covid_stats_df %>% as.data.table(), 'data/covid_stats_dt.rds')
 
-# STOCKS DATA ----
+# ECONOMIC DATA ----
 
+# GDP ====
+
+# data obtained from Statistics Canada 
+# (https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3610010401)
+can_gdp_df <- read_csv('data/CAN_GDP.csv') %>% 
+  mutate(Date = str_c(REF_DATE, '-01') %>% as.Date()) %>% 
+  filter(Date >= '1999-10-01', 
+         Estimates %like% 'Gross domestic product', 
+         Prices %like% 'Chained \\(2012\\)') %>% 
+  mutate(GDP=VALUE/1e6,
+         Growth.Rate = ((GDP/lag(GDP))^4-1)*100,
+         Region = 'Canada') %>% 
+  select(Date, GDP, Growth.Rate, Region)
+  
+# manually curated from https://www.bea.gov/data/gdp/gross-domestic-product
+us_gdp_df <- read_csv('data/US_GDP.csv') %>% 
+  mutate(Date = Date %>% 
+           str_replace('^([:digit:]{4})(Q[:digit:])$', '\\1 \\2') %>% 
+           as.yearqtr() %>% as.Date(),
+         GDP = GDP/1000,
+         Region = 'United States')
+
+gdp_dt <- rbind(can_gdp_df[can_gdp_df$Date>='2000-01-01',], us_gdp_df) %>% as.data.table()
+
+saveRDS(gdp_dt, 'data/gdp_dt.rds')
+# ====
+
+# Employment ====
+# ====
+jobless_claim_dates <- seq(as.Date('2020-01-11'), as.Date('2020-04-25'), by='weeks')
+
+# Initial Unemployment Claims (Seasonally Adjusted) manually curated from 
+# https://oui.doleta.gov/unemploy/wkclaims/report.asp and https://www.dol.gov/ui/data.pdf
+jobless_claims <- c(207000, 220000, 212000, 201000, 204000, 215000, 220000, 217000, 
+                    211000, 282000, 3307000, 6867000, 6615000, 5237000, 4442000, 3839000)
+  
+jobless_claim_df <- data.frame(Date=jobless_claim_dates,
+                               Unemp.Insur.Claim=jobless_claims)
+
+ggplot(jobless_claim_df, aes(Date, Unemp.Insur.Claim)) +
+  geom_col() +
+  my_theme
+
+  
 current_date <- format(Sys.Date(), '%d.%m.%y') %>% 
   str_replace('\\.0([:digit:])\\.', '\\.\\1\\.')
 
