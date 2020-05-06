@@ -167,7 +167,20 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
           selectInput('gdp_region', label = NULL, 
                       choices = c('United States', 'Canada'))
         ),
-        tableOutput('gdp_table')
+        br(), br(),
+        tags$style('#gdp_about { font-size: 16px; font-weight:300;}'),
+        div(id='gdp_about',
+          tags$b("GDP Growth Rate"), "is an indicator of a nation's economic health.\
+          US GDP Growth Rate dropped to ", tags$b("-4.8%"), "in the first quarter of 2020 \
+          (2020 Q1), the lowest it has been since the 2008 financial crisis. \
+          The 2020 Q1 GDP for Canada is yet to be released, but ",
+          tags$a(href="https://www150.statcan.gc.ca/n1/daily-quotidien/200415/dq200415a-eng.htm", "estimates"), 
+          "project a decline of similar scale.",
+          br(), br(),
+          h4('Data Sources:'),
+          tags$a(href="https://www.bea.gov/data/gdp/gross-domestic-product", "Bureau of Economic Analysis"), br(),
+          tags$a(href="https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3610010401", "Statistics Canada"), br()
+        )
       ),
       column(9, style='padding-right:50px;',
         plotOutput('gdp_growth_plot', height=600)
@@ -178,9 +191,29 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
   # impact of COVID-19 on employment
   tabPanel('Employment',
     fluidRow(
-      column(3, style='padding-left:50px;'),
+      column(3, style='padding-left:50px;',
+        tags$style('#tab_select { font-size: 18px;}'),
+        div(id='tab_select',
+           selectInput('emp_region', label = NULL, 
+                       choices = c('United States', 'Canada'))
+        ), 
+        br(), br(),
+        tags$style('#unemp_about { font-size: 16px; font-weight:300;}'),
+        div(id='unemp_about',
+          tags$b("GDP Growth Rate"), "is an indicator of a nation's economic health.\
+          US GDP Growth Rate dropped to ", tags$b("-4.8%"), "in the first quarter of 2020 \
+          (2020 Q1), the lowest it has been since the 2008 financial crisis. \
+          The 2020 Q1 GDP for Canada is yet to be released, but ",
+          tags$a(href="https://www150.statcan.gc.ca/n1/daily-quotidien/200415/dq200415a-eng.htm", "estimates"), 
+          "project a decline of similar scale.",
+          br(), br(),
+          h4('Data Sources:'),
+          tags$a(href="https://www.bea.gov/data/gdp/gross-domestic-product", "Bureau of Economic Analysis"), br(),
+          tags$a(href="https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3610010401", "Statistics Canada"), br()
+        )
+      ),
       column(9, style='padding-right:50px;',
-             plotOutput('unemp_plot')
+             plotOutput('unemp_plot', height=600)
       )
     )
   ),
@@ -283,9 +316,7 @@ server <- function(input, output) {
       addPolygons(weight = 1,
                   color = '#f2f2f2',
                   fillColor = '#cccccc',
-                  fillOpacity = 1) %>% 
-      #addPopups(-120, 40, input$date) %>% 
-      #addLegend('bottomleft', title=input$date, colors='black') %>%
+                  fillOpacity = 1) %>%
       setView(lng=10, lat=30, zoom=2)
   })
   
@@ -301,7 +332,6 @@ server <- function(input, output) {
                   color = '#f2f2f2',
                   fillColor = '#cccccc',
                   fillOpacity = 1) %>%
-      #addLegend('bottomleft', title=input$date, colors='black') %>% 
       setView(lng=-100, lat=60, zoom=3) %>% 
       setMaxBounds(lng1=-130, lng2=-70, lat1=30, lat2=90)
   })
@@ -452,7 +482,7 @@ server <- function(input, output) {
       scale_fill_manual(values=c('TRUE'='limegreen', 'FALSE'='#D41159')) +
       scale_x_date(date_labels='%Y', 
                    breaks = seq(as.Date('2000-01-01'), as.Date('2020-01-01'), by='years')) +
-      labs(x=NULL, y='GDP Growth Rate') +
+      labs(title='Growth Rate of Real GDP from Previous Quarter ', x=NULL) +
       my_theme +
       theme(axis.text.x = element_text(angle=45, hjust=1),
             legend.position='none')
@@ -491,9 +521,8 @@ server <- function(input, output) {
   })
   
   output$unemp_plot <- renderPlot({
-    ggplot(emp_df %>% filter(Country.Code %in% c('CAN', 'USA')), 
-           aes(Date, Unemp.Rate, col=Country.Code)) +
-      geom_line(size = 1.5) +
+    ggplot(emp_dt[Country.Code==input$emp_region], aes(Date, Unemp.Rate)) +
+      geom_line(col='dodgerblue', size=1.5) +
       scale_x_date(date_labels='%Y', 
                    breaks=seq(min(emp_df$Date), max(emp_df$Date), by='2 years')) +
       labs(x=NULL, y='Unemployment Rate', col=NULL) +

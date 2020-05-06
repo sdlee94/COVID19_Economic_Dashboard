@@ -456,13 +456,14 @@ saveRDS(commodities_df, 'data/commodities_df.rds')
 
 #UNEMPLOYMENT DATA ----
 # source: https://data.oecd.org/unemp/unemployment-rate.htm#indicator-chart
-emp_df <- fread('data/OECD_unemp.csv') %>% 
+emp_dt <- fread('data/OECD_unemp.csv') %>% 
   select(Country.Code = LOCATION, Date = TIME, Unemp.Rate = Value) %>% 
   mutate(Date = Date %>% 
            str_c('-01') %>% 
-           as.Date(format='%Y-%m-%d'))
+           as.Date(format='%Y-%m-%d')) %>% 
+  as.data.table()
 
-saveRDS(emp_df, 'data/emp_df.rds')
+saveRDS(emp_dt, 'data/emp_dt.rds')
 # ----
 
 # indices during the Great Recession
