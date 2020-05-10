@@ -27,15 +27,16 @@ covid_stats_dt <- readRDS('data/covid_stats_dt.rds')
 # import GDP data
 gdp_dt <- readRDS('data/gdp_dt.rds')
 
+# import unemployment data
+emp_dt <- readRDS('data/emp_dt.rds')
+job_loss_dt <- readRDS('data/job_loss_dt.rds')
+jobless_claim_dt <- readRDS('data/jobless_claim_dt.rds')
+
 # import indices data
-indices_df <- readRDS('data/indices_df.rds')
+indices_dt <- readRDS('data/indices_dt.rds')
 
 # import commodities data
-commodities_df <- readRDS('data/commodities_df.rds')
-
-# import unemployment data
-emp_df <- readRDS('data/emp_df.rds')
-
+#commodities_df <- readRDS('data/commodities_df.rds')
 # ----
 
 # ggplot Aesthetics ----
@@ -56,7 +57,7 @@ my_theme <- theme(
 # ----
 
 # new page layout with tabs at the top
-ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
+ui <- navbarPage(title = "COVID-19 | ECONOMIC DASHBOARD", theme = "styles.css",
                  
   # first tab of the layout, recorded cases and world map
   tabPanel("Pandemic", 
@@ -97,8 +98,10 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
           # tags$footer(class = "sidebar-date-container", 
           #   tags$p(class = "sidebar-date", textOutput("show_date"))
           # ),
-          tags$a(href='https://github.com/CSSEGISandData/COVID-19', 
-                 'Powered by John Hopkins Data')
+          "Powered by ", 
+          tags$a(href='https://github.com/CSSEGISandData/COVID-19', 'John Hopkins Data'), 
+          br(), br(),
+          tags$a(href='https://github.com/sdlee94/COVID19_Economic_Dashboard', 'Github Repo')
         ),
         column(9,
           tags$div(class = "map-select", 
@@ -148,13 +151,19 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
          tabPanel('Cumulative', plotOutput('cumulative', height = 300)),
          tabPanel('Daily Cases', plotOutput('daily_cases', height = 300))
       ),
-      selectInput('top10_stat', label = NULL,
-                  choices = c('Cases', 
-                              'Cases by Populace', 
-                              'Mortality Rate', 
-                              'Recovery Rate')
-                  ),
-      plotOutput('top10_plot', height = 300)
+      #tags$style('#top10 {display:inline-block;}'),
+      #div(style='display:inline', #id='top10',
+      #div(style='text-align:center; padding-left:20px', textOutput('top10__by')),
+      #div(style='text-align:center; display:center-align',
+      column(6, textOutput('top10__by')),
+      column(6, align='center',
+        selectInput('top10_stat', label=NULL,
+          choices = c('Cases', 
+                      'Cases by Populace', 
+                      'Mortality Rate')
+        )
+      ),
+      plotOutput('top10_plot', height = 280)
     )
   ),
   
@@ -175,7 +184,7 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
           (2020 Q1), the lowest it has been since the 2008 financial crisis. \
           The 2020 Q1 GDP for Canada is yet to be released, but ",
           tags$a(href="https://www150.statcan.gc.ca/n1/daily-quotidien/200415/dq200415a-eng.htm", "estimates"), 
-          "project a decline of similar scale.",
+          "also project a decline of significant scale.",
           br(), br(),
           h4('Data Sources:'),
           tags$a(href="https://www.bea.gov/data/gdp/gross-domestic-product", "Bureau of Economic Analysis"), br(),
@@ -198,65 +207,57 @@ ui <- navbarPage(title = "COVID-19 | EFFECTS", theme = "styles.css",
                        choices = c('United States', 'Canada'))
         ), 
         br(), br(),
-        tags$style('#unemp_about { font-size: 16px; font-weight:300;}'),
-        div(id='unemp_about',
-          tags$b("GDP Growth Rate"), "is an indicator of a nation's economic health.\
-          US GDP Growth Rate dropped to ", tags$b("-4.8%"), "in the first quarter of 2020 \
-          (2020 Q1), the lowest it has been since the 2008 financial crisis. \
-          The 2020 Q1 GDP for Canada is yet to be released, but ",
-          tags$a(href="https://www150.statcan.gc.ca/n1/daily-quotidien/200415/dq200415a-eng.htm", "estimates"), 
-          "project a decline of similar scale.",
-          br(), br(),
+        tags$style('#emp_about { font-size: 16px; font-weight:300;}'),
+        div(id='emp_about',
+          "Canada's unemployment rate reached ", tags$b("13%"), "in April, a level not seen since ",
+          tags$b("December, 1982."), "The US unemployment rate hit ", tags$b('14.7%'), 
+          " in April, the highest it has been since the ", tags$b("Great Depression."), br(), br(),
+          "As of April 2020, the total number of jobs lost since January is ", tags$b("~2.9 million"), 
+          "and", tags$b("~25.4 million"), "for Canada and the US, respectively.", br(), br(),
           h4('Data Sources:'),
-          tags$a(href="https://www.bea.gov/data/gdp/gross-domestic-product", "Bureau of Economic Analysis"), br(),
-          tags$a(href="https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3610010401", "Statistics Canada"), br()
+          tags$a(href="https://www.bls.gov/bls/unemployment.htm", "US Bureau of Labor Statistics"), 
+          br(),
+          tags$a(hred="https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410028701", "Statistics Canada")
         )
       ),
       column(9, style='padding-right:50px;',
-             plotOutput('unemp_plot', height=600)
+             plotOutput('unemp_plot', height=600),
+             absolutePanel(style='font-size:18px',
+               top=70, left=150, width=300, draggable=F,
+               radioButtons('emp_plot_sel', label='Display:', 
+                            choices=c('Unemployment Rate', 'Job Loss'))
+             )
       )
     )
   ),
   
   # impact of COVID-19 on the Stock Market
   tabPanel('Stock Market',
-           fluidRow(
-             column(3, style='padding-left:50px;'),
-             column(9, style='padding-right:50px;',
-                    plotOutput('stock_plot')
-             )
-           )
+    fluidRow(
+     column(3, style='padding-left:50px;',
+            tags$style('#tab_select { font-size: 18px;}'),
+            div(id='tab_select',
+                selectInput('index_region', label = NULL, 
+                            choices = c('Global', 'United States', 'Canada'))
+            ), 
+            br(), br(),
+            tags$style('#index_about { font-size: 16px; font-weight:300;}'),
+            div(id='index_about',
+                "The global and North American stock market indices have dropped, ", 
+                tags$b("~20-35%"), " from the new year in late March, soon after\
+                COVID-19 was declared a pandemic. However, stock markets have rebounded\
+                substantially since then, despite a lack of concrete signs of recovery\
+                regarding the pandemic and the job market.",
+                br(), br(),
+                h4('Data Sources:'),
+                tags$a(href='https://markets.businessinsider.com/indices', 'Markets Insider')
+            )
+     ),
+     column(9, style='padding-right:50px;',
+            plotOutput('index_plot', height=600)
+     )
+    )
   )
-    # column(8, style='padding-left:50px;',
-    #   column(3, style='padding-left:50px;',
-    #     span(h3("DJI"), style='color:#000000'),
-    #     span(h3("GSPC"), style='color:#000000'),
-    #     span(h3("IXIC"), style='color:#000000')
-    #   ),
-    #   column(9,
-    #     plotOutput('index_plot'),
-    #     plotOutput('commodities_plot')
-    #   )
-    # ),
-    # column(4, style='padding-right:50px;',
-    #   plotOutput('unemp_plot'),
-    #   plotOutput('unemp_claim_plot')
-    # )
-  
-  # # third tab of the layout, placeholder for commodities data
-  # tabPanel("Commodities", 
-  #   fluidRow(
-  #     column(1),
-  #     column(3,
-  #       span(h3("Natural Gas"), style='color:#d4af37'),
-  #       span(h3("Gold"), style='color:#79cdcd'),
-  #       span(h3("Cotton"), style='color:#cd5555')
-  #     ),
-  #     column(
-  #       7, "placeholder"
-  #     )
-  #   )
-  # ),
 )
 
 server <- function(input, output) {
@@ -422,7 +423,8 @@ server <- function(input, output) {
                                       'Recovered'='#79cdcd')) +
         labs(x=NULL, y='Cases\n(Millions)', col=NULL) +
         my_theme + 
-        theme(legend.position = 'bottom')
+        theme(legend.position = 'top',
+              legend.key = element_rect(fill='white'))
     })
   })
   
@@ -434,7 +436,7 @@ server <- function(input, output) {
       ggplot(cumulative_dt[region==input$map_view & Date<=input$date,],
              aes(Date, Daily/1000)) +
         geom_col(aes(fill=case_type)) +
-        geom_smooth(aes(col=case_type), se=F, method='loess', size=1.5, show.legend = F) +
+        #geom_smooth(aes(col=case_type), se=F, method='loess', size=1.5, show.legend = F) +
         scale_fill_manual(values = c('Confirmed'='#d4af37',
                                      'Deaths'='#cd5555',
                                      'Recovered'='#79cdcd')) +
@@ -443,19 +445,31 @@ server <- function(input, output) {
                                       'Recovered'='#62A9A9')) +
         labs(x=NULL, y='Cases\n(Thousands)', fill=NULL) +
         my_theme +
-        theme(legend.position = 'bottom')
+        theme(legend.position = c(0.2, 0.85))
     })
   })
+  
+  output$top10__by <- renderText({
+    if(input$map_view=='Worldwide'){
+    '  Top 10 Countries by:'
+  } else if(input$map_view=='United States'){
+    '  Top 10 States by:'
+  } else if(input$map_view=='Canada'){
+    '  Top 10 Provinces by:'
+  }})
   
   observeEvent({
     input$map_view
     input$date
     input$top10_stat
   }, {
-    column_name <- case_when(input$top10_stat=='Cases'~'Cases',
+    column_name <- case_when(input$top10_stat=='Cases'~'Cases.Millions',
                              input$top10_stat=='Cases by Populace'~'Cases.Pop',
-                             input$top10_stat=='Mortality Rate'~'Mortality.Rate',
-                             input$top10_stat=='Recovery Rate'~'Recovery.Rate')
+                             input$top10_stat=='Mortality Rate'~'Mortality.Rate')
+    
+    x_axis_label <- case_when(input$top10_stat=='Cases'~'Cases (Millions)',
+                              input$top10_stat=='Cases by Populace'~'Cases per 100,000 People',
+                              input$top10_stat=='Mortality Rate'~'Mortality.Rate')
     
     dt <- covid_stats_dt[Map.View==input$map_view &
                            Date==input$date & 
@@ -470,8 +484,8 @@ server <- function(input, output) {
         coord_flip() +
         scale_y_continuous(
           labels = ifelse(!!as.symbol(column_name) %like% 'Cases', 
-                          scales::comma, function(x) paste0(x, "%"))) +
-        labs(x=NULL, y=input$top10_stat) +
+                          function(x) paste0(x), function(x) paste0(x, "%"))) +
+        labs(x=NULL, y=x_axis_label) +
         my_theme
     })
   })
@@ -482,85 +496,63 @@ server <- function(input, output) {
       scale_fill_manual(values=c('TRUE'='limegreen', 'FALSE'='#D41159')) +
       scale_x_date(date_labels='%Y', 
                    breaks = seq(as.Date('2000-01-01'), as.Date('2020-01-01'), by='years')) +
-      labs(title='Growth Rate of Real GDP from Previous Quarter ', x=NULL) +
+      labs(title='Growth Rate of Real GDP from Previous Quarter',
+           x=NULL, y='GDP Growth Rate') +
       my_theme +
       theme(axis.text.x = element_text(angle=45, hjust=1),
             legend.position='none')
   })
   
-  output$gdp_table <- renderTable(
-    gdp_dt[Region==input$gdp_region & Date>='2019-01-01', list(Date, GDP)] %>% 
-      mutate(Date=zoo::as.yearqtr(Date, format='%Y-%m-%d')) %>% 
-      column_to_rownames('Date') %>% 
-      t()
-  )
+  output$unemp_plot <- renderPlot({
+    if(input$emp_plot_sel=='Job Loss'){
+      ggplot(job_loss_dt[Region==input$emp_region], 
+             aes(Date, Job.Loss)) +
+        geom_col(width=10) +
+        #geom_hline(yintercept=0.661, color='red', size=1.5, linetype='dashed') +
+        scale_x_date(date_labels='%b') +
+        labs(title='Monthly Job Loss in 2020', x=NULL, y='Jobs Lost (Millions)') +
+        my_theme +
+        theme(axis.text.x = element_text(angle=45, hjust=1))
+    } else if(input$emp_plot_sel=='Unemployment Rate') {
+      ggplot(emp_dt[Region==input$emp_region], aes(Date, Unemp.Rate)) +
+        geom_line(col='dodgerblue', size=1.5) +
+        scale_x_date(date_labels='%Y', 
+                     breaks=seq(min(emp_dt$Date), max(emp_dt$Date), by='2 years')) +
+        labs(title='Monthly Unemployment Rate Over the 21st Century',
+             x=NULL, y='Unemployment Rate', col=NULL) +
+        my_theme +
+        theme(axis.text.x = element_text(angle=45, hjust=1),
+              legend.position = 'top')
+    }
+  })
   
   output$index_plot <- renderPlot({
-    ggplot(indices_df %>% filter(Index.Name %in% c('Dow Jones', 'Nasdaq', 'S&P 500')),
+    ggplot(indices_dt[Region==input$index_region],
            aes(x=Date, y=pc_change, col=Index.Name)) +
       geom_line(size = 1.5) +
       #scale_color_manual(values = c('^GSPC'='gold', '^DJI'='tomato', '^IXIC'='seagreen3')) +
       scale_x_date(date_labels='%b-%d', date_breaks="1 week") +
       scale_y_continuous(labels = function(x) paste0(x, "%")) +
-      labs(x=NULL, y='% Change', col=NULL) + 
+      labs(title = '% Change in Stock Market Indices from Jan 1, 2020', 
+           x=NULL, y='% Change from Jan 1', col=NULL) + 
       my_theme +
       theme(axis.text.x = element_text(angle=45, hjust=1),
-            legend.position = 'top')
+            legend.position = c(0.1, 0.15),
+            legend.key = element_rect(fill='white'),
+            legend.text = element_text(size=18))
   })
   
-  output$commodities_plot <- renderPlot({
-    ggplot(commodities_df,
-           aes(x=Date, y=pc_change, col=Query)) +
-      geom_line(size = 1.5) +
-      scale_x_date(date_labels='%b-%d', date_breaks="1 week") +
-      scale_y_continuous(labels = function(x) paste0(x, "%")) +
-      labs(x=NULL, y='% Change', col=NULL) + 
-      my_theme +
-      theme(axis.text.x = element_text(angle=45, hjust=1),
-            legend.position = 'top')
-  })
-  
-  output$unemp_plot <- renderPlot({
-    ggplot(emp_dt[Country.Code==input$emp_region], aes(Date, Unemp.Rate)) +
-      geom_line(col='dodgerblue', size=1.5) +
-      scale_x_date(date_labels='%Y', 
-                   breaks=seq(min(emp_df$Date), max(emp_df$Date), by='2 years')) +
-      labs(x=NULL, y='Unemployment Rate', col=NULL) +
-      my_theme +
-      theme(axis.text.x = element_text(angle=45, hjust=1),
-            legend.position = 'top')
-  })
-  
-  output$unemp_claim_plot <- renderPlot({
-    ggplot(jobless_claim_df, aes(Date, Unemp.Insur.Claim/1e6)) +
-      geom_col() +
-      geom_hline(yintercept=0.661, color='red', size=1.5, linetype='dashed') +
-      scale_x_date(date_labels='%b-%d', 
-                   breaks=seq(as.Date('2020-01-11'), as.Date('2020-04-25'), by='weeks')) +
-      scale_y_continuous(labels = scales::comma) +
-      labs(x=NULL, y='Jobless Claims\n(millions)') +
-      my_theme +
-      theme(axis.text.x = element_text(angle=45, hjust=1))
-  })
-  p1 <- ggplot(emp_df %>% filter(Country.Code %in% c('CAN', 'USA')), 
-               aes(Date, Unemp.Rate, col=Country.Code)) +
-    geom_line(size = 1.5) +
-    scale_x_date(date_labels='%Y', 
-                 breaks=seq(min(emp_df$Date), max(emp_df$Date), by='2 years')) +
-    labs(x=NULL, y='Unemployment Rate', col=NULL) +
-    my_theme +
-    theme(axis.text.x = element_text(angle=45, hjust=1),
-          legend.position = 'top')
-  
-  p2 <- ggplot(jobless_claim_df, aes(Date, Unemp.Insur.Claim/1e6)) +
-    geom_col() +
-    geom_hline(yintercept=0.661, color='red', size=1.5, linetype='dashed') +
-    scale_x_date(date_labels='%b-%d', 
-                 breaks=seq(min(jobless_claim_df$Date), max(jobless_claim_df$Date), by='2 weeks')) +
-    scale_y_continuous(labels = scales::comma) +
-    labs(x=NULL, y='Jobless Claims\n(millions)') +
-    my_theme +
-    theme(axis.text.x = element_text(angle=45, hjust=1))
+  # output$commodities_plot <- renderPlot({
+  #   ggplot(commodities_df,
+  #          aes(x=Date, y=pc_change, col=Query)) +
+  #     geom_line(size = 1.5) +
+  #     scale_x_date(date_labels='%b-%d', date_breaks="1 week") +
+  #     scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  #     labs(x=NULL, y='% Change', col=NULL) + 
+  #     my_theme +
+  #     theme(axis.text.x = element_text(angle=45, hjust=1),
+  #           legend.position = 'top')
+  # })
 }
 
 shinyApp(ui, server)

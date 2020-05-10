@@ -4,5 +4,6 @@
 .Ruserdata
 .ipynb_checkpoints/*
 archived/*
+data/*
 debug.log
 geckodriver.log

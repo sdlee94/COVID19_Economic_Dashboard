@@ -1,6 +1,7 @@
 library(tidyverse)
 library(data.table)
 library(reticulate)
+library(readxl)
 
 # MAPS ----
 # spatial dataframe of the world
@@ -134,7 +135,7 @@ recovered_df <- read.csv(recovered_url) %>%
 sum_by_region <- function(df, case_type){
   sum_df <- df %>% 
     group_by(Country.Region, Date) %>% 
-    summarize(Cases = sum(Cases))
+    summarize(Cases = sum(Cases, na.rm=T))
   
   colnames(sum_df) <- c('Country.Region', 'Date', case_type)
 
@@ -159,7 +160,7 @@ filter_region <- function(df, region){
   region_df <- df %>% 
     filter(Country.Region==region) %>% 
     group_by(Province.State, Date) %>% 
-    mutate(Cases = sum(Cases), Map.View=region)
+    mutate(Cases = sum(Cases, na.rm=T), Map.View=region)
   
   # replace coordinates with state centroids for US data
   if(region=='United States'){
@@ -208,7 +209,7 @@ cum_cases <- function(df, case_name, region='Worldwide'){
   if(region=='Worldwide'){
     new_df <- df %>% 
       group_by(Date) %>% 
-      summarize(Total = sum(Cases)) %>% 
+      summarize(Total = sum(Cases, na.rm=T)) %>% 
       mutate(Daily = Total - lag(Total),
              case_type = case_name,
              region = region)
@@ -216,7 +217,7 @@ cum_cases <- function(df, case_name, region='Worldwide'){
     new_df <- df %>% 
       filter(Country.Region==region) %>% 
       group_by(Date) %>% 
-      summarize(Total = sum(Cases)) %>% 
+      summarize(Total = sum(Cases, na.rm=T)) %>% 
       mutate(Daily = Total - lag(Total),
              case_type = case_name,
              region = region)
@@ -259,17 +260,17 @@ country_pop_df <- as.data.frame(country_pop[[1]]) %>%
 # top 10 countries ----
 cases_by_country_df <- confirmed_df %>% 
   group_by(Country.Region, Date) %>%
-  summarize(Cases = sum(Cases)) %>% 
+  summarize(Cases = sum(Cases, na.rm=T)) %>% 
   left_join(country_pop_df) %>%
   mutate(Cases.Pop = Cases/(Population/100000))
 
 deaths_by_country_df <- deaths_df %>% 
   group_by(Country.Region, Date) %>%
-  summarize(Deaths = sum(Cases))
+  summarize(Deaths = sum(Cases, na.rm=T))
 
 recovered_by_country_df <- recovered_df %>%
   group_by(Country.Region, Date) %>%
-  summarize(Recovered = sum(Cases))
+  summarize(Recovered = sum(Cases, na.rm=T))
 
 covid_summary_df <- cases_by_country_df %>% 
   merge(deaths_by_country_df, all.x=T) %>% 
@@ -301,14 +302,14 @@ state_pop_df <- data.frame(state_pop[[1]])[-1,] %>%
 cases_by_state_df <- confirmed_df %>% 
   filter(Country.Region=='United States') %>% 
   group_by(Province.State, Date) %>%
-  summarize(Cases = sum(Cases)) %>% 
+  summarize(Cases = sum(Cases, na.rm=T)) %>% 
   left_join(state_pop_df) %>%
   mutate(Cases.Pop = Cases/(Population/100000))
             
 deaths_by_state_df <- deaths_df %>% 
   filter(Country.Region=='United States') %>% 
   group_by(Province.State, Date) %>%
-  summarize(Deaths = sum(Cases))
+  summarize(Deaths = sum(Cases, na.rm=T))
 
 summary_by_state_df <- cases_by_state_df %>% 
   left_join(deaths_by_state_df) %>% 
@@ -338,14 +339,14 @@ province_pop_df <- province_pop[[1]] %>%
 cases_by_province_df <- confirmed_df %>% 
   filter(Country.Region=='Canada') %>% 
   group_by(Province.State, Date) %>%
-  summarize(Cases = sum(Cases)) %>% 
+  summarize(Cases = sum(Cases, na.rm=T)) %>% 
   left_join(province_pop_df) %>%
   mutate(Cases.Pop = Cases/(Population/100000))
 
 deaths_by_province_df <- deaths_df %>% 
   filter(Country.Region=='Canada') %>% 
   group_by(Province.State, Date) %>%
-  summarize(Deaths = sum(Cases))
+  summarize(Deaths = sum(Cases, na.rm=T))
 
 summary_by_province_df <- cases_by_province_df %>% 
   left_join(deaths_by_province_df) %>% 
@@ -358,11 +359,13 @@ summary_by_province_df <- cases_by_province_df %>%
   select(Region=Province.State, Date, Cases, Population, Cases.Pop, Deaths, 
          Recovered, Mortality.Rate, Recovery.Rate, Map.View)
 
-covid_stats_df <- rbind(covid_summary_df,
+covid_stats_dt <- rbind(covid_summary_df,
                         summary_by_state_df %>% mutate(Map.View='United States'),
-                        summary_by_province_df %>% mutate(Map.View='Canada'))
+                        summary_by_province_df %>% mutate(Map.View='Canada')) %>% 
+  mutate(Cases.Millions=Cases/1e6) %>% 
+  as.data.table()
 
-saveRDS(covid_stats_df %>% as.data.table(), 'data/covid_stats_dt.rds')
+saveRDS(covid_stats_dt, 'data/covid_stats_dt.rds')
 
 # ECONOMIC DATA ----
 
@@ -394,46 +397,114 @@ saveRDS(gdp_dt, 'data/gdp_dt.rds')
 # ====
 
 # Employment ====
+
+# downloaded from the US Bureau of Labor Statistics
+# https://data.bls.gov/timeseries/LNS14000000
+us_emp_df <- read_excel('data/us_emp.xlsx', skip=11) %>% 
+  gather(Month, Unemp.Rate, 2:length(.)) %>% 
+  unite(Date, c('Month', 'Year'), sep='-') %>% 
+  mutate(Date = Date %>% str_c('-01') %>% as.Date('%b-%Y-%d')) %>% 
+  arrange(Date) %>% 
+  na.omit() %>% 
+  mutate(Region='United States')
+
+# downloaded from Statistics Canada
+# https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410028701
+can_emp_df <- read_csv('data/can_emp.csv') %>% 
+  mutate(Date = REF_DATE %>% str_c('-01') %>% as.Date('%Y-%m-%d')) %>% 
+  filter(Date >= '2000-01-01', `Data type` %like% 'Seasonally', Sex=='Both sexes', 
+         `Age group`=='15 years and over', UOM=='Percentage', GEO=='Canada',
+         `Labour force characteristics`=='Unemployment rate', Statistics=='Estimate') %>% 
+  select(Date, Unemp.Rate=VALUE, Region=GEO)
+
+emp_dt <- rbind(us_emp_df, can_emp_df) %>% 
+  as.data.table()
+
+# source: https://data.oecd.org/unemp/unemployment-rate.htm#indicator-chart
+# emp_dt <- fread('data/OECD_unemp.csv') %>% 
+#   filter(LOCATION %in% c('CAN', 'USA')) %>% 
+#   mutate(Region = if_else(LOCATION=='CAN', 'Canada', 'United States'),
+#          Date = TIME %>% 
+#            str_c('-01') %>% 
+#            as.Date(format='%Y-%m-%d')) %>% 
+#   select(Region, Date, Unemp.Rate = Value) %>% 
+#   as.data.table()
+
+saveRDS(emp_dt, 'data/emp_dt.rds')
 # ====
-jobless_claim_dates <- seq(as.Date('2020-01-11'), as.Date('2020-04-25'), by='weeks')
+
+# Job Losses ====
+jobloss_dates <- seq(as.Date('2020-01-01'), as.Date('2020-04-01'), by='months')
+
+# Manually curated by subtracted employed from previous month
+# https://www.bls.gov/news.release/empsit.t01.htm
+us_job_losses <- c(0.089, -0.045, 2.987, 22.369)
+
+# https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410028701
+can_job_losses <- c(-0.0345, -0.0303, 1.0107, 1.9938)
+
+job_loss_dt <- data.frame(Date=rep(jobloss_dates, 2),
+                          Job.Loss=c(us_job_losses, can_job_losses),
+                          Region=c(rep('United States', 4), rep('Canada',4))) %>% 
+  as.data.table()
+
+saveRDS(job_loss_dt, 'data/job_loss_dt.rds')
+# ====
+
+# Jobless Claims ====
+us_jobless_dates <- seq(as.Date('2020-01-11'), as.Date('2020-05-02'), by='weeks')
 
 # Initial Unemployment Claims (Seasonally Adjusted) manually curated from 
 # https://oui.doleta.gov/unemploy/wkclaims/report.asp and https://www.dol.gov/ui/data.pdf
-jobless_claims <- c(207000, 220000, 212000, 201000, 204000, 215000, 220000, 217000, 
-                    211000, 282000, 3307000, 6867000, 6615000, 5237000, 4442000, 3839000)
-  
-jobless_claim_df <- data.frame(Date=jobless_claim_dates,
-                               Unemp.Insur.Claim=jobless_claims)
+us_jobless_claims <- c(207000, 220000, 212000, 201000, 204000, 215000, 220000, 
+                       217000, 211000, 282000, 3307000, 6867000, 6615000, 5237000, 
+                       4442000, 3846000, 3169000)
 
-ggplot(jobless_claim_df, aes(Date, Unemp.Insur.Claim)) +
-  geom_col() +
-  my_theme
+can_jobless_dates <- seq(as.Date('2019-10-01'), as.Date('2020-04-01'), by='months')
 
+# https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410000501
+can_jobless_claims <- c(241420, 245290, 244380, 241840, 241100, 10107000, 1993800)
   
+jobless_claim_dt <- data.frame(Date=c(us_jobless_dates, can_jobless_dates),
+                               Unemp.Insur.Claim=c(us_jobless_claims, can_jobless_claims),
+                               Region=c(rep('United States', length(us_jobless_claims)),
+                                        rep('Canada', length(can_jobless_claims)))) %>% 
+  as.data.table()
+
+saveRDS(jobless_claim_dt, 'data/jobless_claim_dt.rds')
+# ====
+
+# Stock Market Index ====
 current_date <- format(Sys.Date(), '%d.%m.%y') %>% 
   str_replace('\\.0([:digit:])\\.', '\\.\\1\\.')
 
 use_python('C:\\Users/Steph/Anaconda3/python.exe', required=T)
 source_python('get_prices.py')
 
-indices_df <- c('dow_jones_global_dow', 'dow_jones', 's&p_500', 'nasdaq_100', 's&p-tsx-60') %>% 
-  map(get_prices, query_class='index', start_date='22.1.2020', end_date=current_date) %>% 
+indices_dt <- c('dow_jones_global_dow', 'dow_jones', 's&p_500', 'nasdaq_100', 's&p-tsx-60') %>% 
+  map(get_prices, query_class='index', start_date='1.1.2020', end_date=current_date) %>% 
   bind_rows() %>% 
   mutate(Index.Name = case_when(Query=='dow_jones_global_dow'~'Global Dow',
                                 Query=='dow_jones'~'Dow Jones',
                                 Query=='nasdaq_100'~'Nasdaq',
                                 Query=='s&p_500'~'S&P 500',
                                 Query=='s&p-tsx-60'~'S&P TSX'),
+         Region=case_when(Index.Name=='Global Dow' ~ 'Global',
+                          Index.Name=='S&P TSX' ~ 'Canada',
+                          T ~ 'United States'),
          Date = str_replace_all(Date, '/', '-') %>% 
            as.Date(format='%m-%d-%y'),
          Close = str_replace_all(Close, ',', '') %>% 
            as.numeric()) %>% 
   arrange(Query, Date) %>% 
   group_by(Query) %>% 
-  mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2))
+  mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2)) %>% 
+  as.data.table()
 
-saveRDS(indices_df, 'data/indices_df.rds')
+saveRDS(indices_dt, 'data/indices_dt.rds')
+# ====
 
+# Commodities ====
 commodities <- c('gold-price', 'live-cattle-price', 'lumber-price', 'oil-price', 'rice-price')
 commodities_df <- commodities %>%
   map(get_prices, query_class='commodities', start_date='22.1.2020', end_date=current_date) %>% 
@@ -452,35 +523,7 @@ commodities_df <- commodities %>%
   mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2))
 
 saveRDS(commodities_df, 'data/commodities_df.rds')
-
-
-#UNEMPLOYMENT DATA ----
-# source: https://data.oecd.org/unemp/unemployment-rate.htm#indicator-chart
-emp_dt <- fread('data/OECD_unemp.csv') %>% 
-  select(Country.Code = LOCATION, Date = TIME, Unemp.Rate = Value) %>% 
-  mutate(Date = Date %>% 
-           str_c('-01') %>% 
-           as.Date(format='%Y-%m-%d')) %>% 
-  as.data.table()
-
-saveRDS(emp_dt, 'data/emp_dt.rds')
-# ----
-
-# indices during the Great Recession
-# past_indices_df <- c('dow_jones', 's&p_500', 'nasdaq_100') %>% 
-#   map(get_prices, query_class='index', start_date='1.12.2007', end_date='30.7.2009') %>% 
-#   bind_rows() %>% 
-#   mutate(Index.Name = case_when(Query=='dow_jones'~'Dow Jones',
-#                                 Query=='nasdaq_100'~'Nasdaq',
-#                                 Query=='s&p_500'~'S&P 500'),
-#          Date = str_replace_all(Date, '/', '-') %>% 
-#            as.Date(format='%m-%d-%y'),
-#          Close = str_replace_all(Close, ',', '') %>% 
-#            as.numeric()) %>% 
-#   group_by(Query) %>% 
-#   mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2))
-# 
-# past_indices_df %>% group_by(Index.Name) %>% summarize(peak_drop = min(pc_change))
+# ====
 
 #eco_url = 'http://finmindapi.servebeer.com/api/data'
 
