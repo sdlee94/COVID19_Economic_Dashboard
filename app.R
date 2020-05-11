@@ -98,7 +98,7 @@ ui <- navbarPage(title = "COVID-19 | ECONOMIC DASHBOARD", theme = "styles.css",
           # tags$footer(class = "sidebar-date-container", 
           #   tags$p(class = "sidebar-date", textOutput("show_date"))
           # ),
-          "Powered by ", 
+          "Powered by ", br(),
           tags$a(href='https://github.com/CSSEGISandData/COVID-19', 'John Hopkins Data'), 
           br(), br(),
           tags$a(href='https://github.com/sdlee94/COVID19_Economic_Dashboard', 'Github Repo')
@@ -151,10 +151,6 @@ ui <- navbarPage(title = "COVID-19 | ECONOMIC DASHBOARD", theme = "styles.css",
          tabPanel('Cumulative', plotOutput('cumulative', height = 300)),
          tabPanel('Daily Cases', plotOutput('daily_cases', height = 300))
       ),
-      #tags$style('#top10 {display:inline-block;}'),
-      #div(style='display:inline', #id='top10',
-      #div(style='text-align:center; padding-left:20px', textOutput('top10__by')),
-      #div(style='text-align:center; display:center-align',
       column(6, textOutput('top10__by')),
       column(6, align='center',
         selectInput('top10_stat', label=NULL,
@@ -238,12 +234,12 @@ ui <- navbarPage(title = "COVID-19 | ECONOMIC DASHBOARD", theme = "styles.css",
             tags$style('#tab_select { font-size: 18px;}'),
             div(id='tab_select',
                 selectInput('index_region', label = NULL, 
-                            choices = c('Global', 'United States', 'Canada'))
+                            choices = c('United States', 'Canada', 'Global'))
             ), 
             br(), br(),
             tags$style('#index_about { font-size: 16px; font-weight:300;}'),
             div(id='index_about',
-                "The global and North American stock market indices have dropped, ", 
+                "The global and North American stock market indices have dropped ", 
                 tags$b("~20-35%"), " from the new year in late March, soon after\
                 COVID-19 was declared a pandemic. However, stock markets have rebounded\
                 substantially since then, despite a lack of concrete signs of recovery\

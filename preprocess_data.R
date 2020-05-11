@@ -505,50 +505,22 @@ saveRDS(indices_dt, 'data/indices_dt.rds')
 # ====
 
 # Commodities ====
-commodities <- c('gold-price', 'live-cattle-price', 'lumber-price', 'oil-price', 'rice-price')
-commodities_df <- commodities %>%
-  map(get_prices, query_class='commodities', start_date='22.1.2020', end_date=current_date) %>% 
-  bind_rows() %>% 
-  mutate(Query = Query %>% 
-           str_replace('-price', '') %>% 
-           str_replace('-', ' ') %>% 
-           toTitleCase(),
-         Date = str_replace_all(Date, '/', '-') %>% 
-           as.Date(format='%m-%d-%y'),
-         Close = str_replace_all(Close, ',', '') %>% 
-           as.numeric()) %>% 
-  arrange(Query, Date) %>% 
-  group_by(Query) %>% 
-  arrange(Date) %>% 
-  mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2))
-
-saveRDS(commodities_df, 'data/commodities_df.rds')
-# ====
-
-#eco_url = 'http://finmindapi.servebeer.com/api/data'
-
-# Fx to obtain stock time series data
-# get_stock_data <- function(stock_id){
-#   payload <- list('dataset' = 'USStockPrice',
-#                   'stock_id' = stock_id,
-#                   'date'='2020-01-22')
-#   response <- POST(eco_url, body = payload, encode = "form")
-#   print(stock_id)
-#   data <- response %>% content
-#   
-#   df <- do.call('cbind', data$data) %>% 
-#     data.table %>% 
-#     unnest(cols = colnames(.))
-#   
-#   return(df)
-# }
+# commodities <- c('gold-price', 'live-cattle-price', 'lumber-price', 'oil-price', 'rice-price')
+# commodities_df <- commodities %>%
+#   map(get_prices, query_class='commodities', start_date='22.1.2020', end_date=current_date) %>% 
+#   bind_rows() %>% 
+#   mutate(Query = Query %>% 
+#            str_replace('-price', '') %>% 
+#            str_replace('-', ' ') %>% 
+#            toTitleCase(),
+#          Date = str_replace_all(Date, '/', '-') %>% 
+#            as.Date(format='%m-%d-%y'),
+#          Close = str_replace_all(Close, ',', '') %>% 
+#            as.numeric()) %>% 
+#   arrange(Query, Date) %>% 
+#   group_by(Query) %>% 
+#   arrange(Date) %>% 
+#   mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2))
 # 
-# stock_data <- c('^GSPC', '^DJI', '^IXIC') %>%
-#   map(get_stock_data) %>%
-#   bind_rows() %>%
-#   select(date, stock_id, Close) %>% 
-#   group_by(stock_id) %>% 
-#   mutate(pc_change = round((Close - first(Close)) / first(Close) * 100, 2),
-#          date = as.Date(date))
-# saveRDS(stock_data, 'data/stock_data.rds')
-# ----
+# saveRDS(commodities_df, 'data/commodities_df.rds')
+# ====
