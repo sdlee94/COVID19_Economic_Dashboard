@@ -5,7 +5,6 @@ library(shiny)
 library(shinyWidgets)
 library(leaflet)
 library(rworldmap)
-library(patchwork)
 
 # DATA ----
 
@@ -208,8 +207,8 @@ ui <- navbarPage(title = "COVID-19 | ECONOMIC DASHBOARD", theme = "styles.css",
           "Canada's unemployment rate reached ", tags$b("13%"), "in April, a level not seen since ",
           tags$b("December, 1982."), "The US unemployment rate hit ", tags$b('14.7%'), 
           " in April, the highest it has been since the ", tags$b("Great Depression."), br(), br(),
-          "As of April 2020, the total number of jobs lost since January is ", tags$b("~2.9 million"), 
-          "and", tags$b("~25.4 million"), "for Canada and the US, respectively.", br(), br(),
+          # "As of April 2020, the total number of jobs lost since January is ", tags$b("~2.9 million"), 
+          # "and", tags$b("~25.4 million"), "for Canada and the US, respectively.", br(), br(),
           h4('Data Sources:'),
           tags$a(href="https://www.bls.gov/bls/unemployment.htm", "US Bureau of Labor Statistics"), 
           br(),
@@ -217,12 +216,12 @@ ui <- navbarPage(title = "COVID-19 | ECONOMIC DASHBOARD", theme = "styles.css",
         )
       ),
       column(9, style='padding-right:50px;',
-             plotOutput('unemp_plot', height=600),
-             absolutePanel(style='font-size:18px',
-               top=70, left=150, width=300, draggable=F,
-               radioButtons('emp_plot_sel', label='Display:', 
-                            choices=c('Unemployment Rate', 'Job Loss'))
-             )
+             plotOutput('unemp_plot', height=600)
+             # absolutePanel(style='font-size:18px',
+             #   top=70, left=150, width=300, draggable=F
+             #   radioButtons('emp_plot_sel', label='Display:', 
+             #                choices=c('Unemployment Rate', 'Job Loss'))
+             # )
       )
     )
   ),
@@ -500,26 +499,25 @@ server <- function(input, output) {
   })
   
   output$unemp_plot <- renderPlot({
-    if(input$emp_plot_sel=='Job Loss'){
-      ggplot(job_loss_dt[Region==input$emp_region], 
-             aes(Date, Job.Loss)) +
-        geom_col(width=10) +
-        #geom_hline(yintercept=0.661, color='red', size=1.5, linetype='dashed') +
-        scale_x_date(date_labels='%b') +
-        labs(title='Monthly Job Loss in 2020', x=NULL, y='Jobs Lost (Millions)') +
-        my_theme +
-        theme(axis.text.x = element_text(angle=45, hjust=1))
-    } else if(input$emp_plot_sel=='Unemployment Rate') {
-      ggplot(emp_dt[Region==input$emp_region], aes(Date, Unemp.Rate)) +
-        geom_line(col='dodgerblue', size=1.5) +
-        scale_x_date(date_labels='%Y', 
-                     breaks=seq(min(emp_dt$Date), max(emp_dt$Date), by='2 years')) +
-        labs(title='Monthly Unemployment Rate Over the 21st Century',
-             x=NULL, y='Unemployment Rate', col=NULL) +
-        my_theme +
-        theme(axis.text.x = element_text(angle=45, hjust=1),
-              legend.position = 'top')
-    }
+    # if(input$emp_plot_sel=='Job Loss'){
+    #   ggplot(job_loss_dt[Region==input$emp_region], 
+    #          aes(Date, Job.Loss)) +
+    #     geom_col(width=10) +
+    #     #geom_hline(yintercept=0.661, color='red', size=1.5, linetype='dashed') +
+    #     scale_x_date(date_labels='%b') +
+    #     labs(title='Monthly Job Loss in 2020', x=NULL, y='Jobs Lost (Millions)') +
+    #     my_theme +
+    #     theme(axis.text.x = element_text(angle=45, hjust=1))
+    # } else if(input$emp_plot_sel=='Unemployment Rate') {
+    ggplot(emp_dt[Region==input$emp_region], aes(Date, Unemp.Rate)) +
+      geom_line(col='dodgerblue', size=1.5) +
+      scale_x_date(date_labels='%Y', 
+                   breaks=seq(min(emp_dt$Date), max(emp_dt$Date), by='2 years')) +
+      labs(title='Monthly Unemployment Rate Over the 21st Century',
+           x=NULL, y='Unemployment Rate', col=NULL) +
+      my_theme +
+      theme(axis.text.x = element_text(angle=45, hjust=1),
+            legend.position = 'top')
   })
   
   output$index_plot <- renderPlot({

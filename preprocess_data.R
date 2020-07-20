@@ -398,7 +398,7 @@ saveRDS(gdp_dt, 'data/gdp_dt.rds')
 
 # Employment ====
 
-# downloaded from the US Bureau of Labor Statistics
+# downloaded from the US Bureau of Labor Statistics (year 2000 to 2020)
 # https://data.bls.gov/timeseries/LNS14000000
 us_emp_df <- read_excel('data/us_emp.xlsx', skip=11) %>% 
   gather(Month, Unemp.Rate, 2:length(.)) %>% 
@@ -408,14 +408,20 @@ us_emp_df <- read_excel('data/us_emp.xlsx', skip=11) %>%
   na.omit() %>% 
   mutate(Region='United States')
 
-# downloaded from Statistics Canada
+# downloaded from Statistics Canada (year 2000 to 2020)
 # https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410028701
+# Download Option: Download selected data (for database loading)
+
+# process can unemployment data
 can_emp_df <- read_csv('data/can_emp.csv') %>% 
   mutate(Date = REF_DATE %>% str_c('-01') %>% as.Date('%Y-%m-%d')) %>% 
   filter(Date >= '2000-01-01', `Data type` %like% 'Seasonally', Sex=='Both sexes', 
          `Age group`=='15 years and over', UOM=='Percentage', GEO=='Canada',
          `Labour force characteristics`=='Unemployment rate', Statistics=='Estimate') %>% 
   select(Date, Unemp.Rate=VALUE, Region=GEO)
+
+write_csv(can_emp_df, 'data/can_emp.csv')
+can_emp_df <- read_csv('data/can_emp.csv')
 
 emp_dt <- rbind(us_emp_df, can_emp_df) %>% 
   as.data.table()
@@ -434,9 +440,9 @@ saveRDS(emp_dt, 'data/emp_dt.rds')
 # ====
 
 # Job Losses ====
-jobloss_dates <- seq(as.Date('2020-01-01'), as.Date('2020-04-01'), by='months')
+jobloss_dates <- seq(as.Date('2020-01-01'), as.Date('2020-05-01'), by='months')
 
-# Manually curated by subtracted employed from previous month
+# Manually curated by subtracted employed from previous month, in millions
 # https://www.bls.gov/news.release/empsit.t01.htm
 us_job_losses <- c(0.089, -0.045, 2.987, 22.369)
 
@@ -459,6 +465,7 @@ us_jobless_dates <- seq(as.Date('2020-01-11'), as.Date('2020-05-02'), by='weeks'
 us_jobless_claims <- c(207000, 220000, 212000, 201000, 204000, 215000, 220000, 
                        217000, 211000, 282000, 3307000, 6867000, 6615000, 5237000, 
                        4442000, 3846000, 3169000)
+us_jobless_claims <- c(851000, 1057000, 10667000, 20161000, 12329000)
 
 can_jobless_dates <- seq(as.Date('2019-10-01'), as.Date('2020-04-01'), by='months')
 
