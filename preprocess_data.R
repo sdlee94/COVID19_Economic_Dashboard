@@ -2,6 +2,7 @@ library(tidyverse)
 library(data.table)
 library(reticulate)
 library(readxl)
+source('utils.R')
 
 # MAPS ----
 # spatial dataframe of the world
@@ -73,30 +74,6 @@ deaths_us_url = str_c(parent_url,'time_series_covid19_deaths_US.csv')
 recovered_url = str_c(parent_url,'time_series_covid19_recovered_global.csv')
 # recovered data from US not available
 
-# fx to convert wide to long format & do preprocessing
-wide_to_long <- function(wide_df){
-  if('Country_Region' %in% colnames(wide_df)){
-    wide_df <- wide_df %>% rename(Country.Region = Country_Region)
-  }
-  
-  long_df <- wide_df %>%
-    gather(Date, Cases, starts_with('x')) %>%
-    mutate(Country.Region = case_when(Country.Region=='Korea, South'~'South Korea',
-                                      Country.Region=='Taiwan*'~'Taiwan',
-                                      Country.Region=='US'~'United States',
-                                      Country.Region=='Saint Kitts and Nevis'~'Saint Kitts & Nevis',
-                                      Country.Region=='Sao Tome and Principe'~'Sao Tome & Principe',
-                                      Country.Region=='Congo (Brazzaville)'~'Congo',
-                                      Country.Region=='Congo (Kinshasa)'~'DR Congo',
-                                      Country.Region=='Czechia'~'Czech Republic (Czechia)',
-                                      TRUE~as.character(Country.Region)),
-           Date = Date %>%
-             str_replace('X', '0') %>%
-             str_replace_all('\\.', '-') %>%
-             as.Date(format='%m-%d-%y'))
-  return(long_df)
-}
-
 # obtain reported cases from US
 confirmed_us_df <- read.csv(confirmed_us_url) %>%
   wide_to_long() %>%
@@ -131,17 +108,6 @@ recovered_df <- read.csv(recovered_url) %>%
   filter(Cases>0) %>% 
   mutate(Cases.Sqrt = round(sqrt(Cases), 2))
 
-# fx to get total cases by country
-sum_by_region <- function(df, case_type){
-  sum_df <- df %>% 
-    group_by(Country.Region, Date) %>% 
-    summarize(Cases = sum(Cases, na.rm=T))
-  
-  colnames(sum_df) <- c('Country.Region', 'Date', case_type)
-
-  return(sum_df)
-}
-
 # total cases (all types) by country
 covid_by_country <- confirmed_df %>% 
   sum_by_region('Confirmed') %>% 
@@ -151,34 +117,6 @@ covid_by_country <- confirmed_df %>%
   left_join(centroids) %>% 
   mutate(Province.State='', Map.View='Worldwide') %>% 
   select(Map.View, Country.Region, Province.State, Lat, Long, Date, Confirmed, Deaths, Recovered)
-
-filter_region <- function(df, region){
-  case_type <- deparse(substitute(df)) %>% 
-    str_remove('_df') %>% 
-    tools::toTitleCase()
-  
-  region_df <- df %>% 
-    filter(Country.Region==region) %>% 
-    group_by(Province.State, Date) %>% 
-    mutate(Cases = sum(Cases, na.rm=T), Map.View=region)
-  
-  # replace coordinates with state centroids for US data
-  if(region=='United States'){
-    region_df <- region_df %>% 
-      select(-Lat, -Long) %>% 
-      left_join(usa_centroids) %>% 
-      select(Map.View, Country.Region, Province.State, Lat, Long, Date, Cases) %>% 
-      distinct()
-  } else {
-    region_df <- region_df %>% 
-      select(Map.View, Country.Region, Province.State, Lat, Long, Date, Cases) %>% 
-      distinct()
-  }
-  
-  colnames(region_df)[length(colnames(region_df))] <- case_type
-  
-  return(region_df)
-}
 
 covid_dt <- covid_by_country %>% 
   rename(Region=Country.Region) %>% 
@@ -203,28 +141,9 @@ covid_dt <- covid_by_country %>%
   as.data.table()
 
 saveRDS(covid_dt, 'data/covid_dt.rds')
+# ----
 
-# make df of cumulative cases by Date ----
-cum_cases <- function(df, case_name, region='Worldwide'){
-  if(region=='Worldwide'){
-    new_df <- df %>% 
-      group_by(Date) %>% 
-      summarize(Total = sum(Cases, na.rm=T)) %>% 
-      mutate(Daily = Total - lag(Total),
-             case_type = case_name,
-             region = region)
-  } else {
-    new_df <- df %>% 
-      filter(Country.Region==region) %>% 
-      group_by(Date) %>% 
-      summarize(Total = sum(Cases, na.rm=T)) %>% 
-      mutate(Daily = Total - lag(Total),
-             case_type = case_name,
-             region = region)
-  }
-
-  return(new_df)
-}
+# CUMULATIVE CASES ----
 
 cumulative_df <- rbind(cum_cases(confirmed_df, 'Confirmed'),
                        cum_cases(deaths_df, 'Deaths'),
@@ -243,6 +162,8 @@ cumulative_df[is.na(cumulative_df)] <- 0
 saveRDS(cumulative_df %>% as.data.table(), 'data/cumulative_dt.rds')
 # ----
 
+# COVID SUMMARY DATA BY REGION ----
+
 # population by country in 2020
 country_pop_url <- 'https://www.worldometers.info/world-population/population-by-country/'
 
@@ -257,7 +178,6 @@ country_pop_df <- as.data.frame(country_pop[[1]]) %>%
            str_replace_all(',', '') %>% 
            as.integer())
 
-# top 10 countries ----
 cases_by_country_df <- confirmed_df %>% 
   group_by(Country.Region, Date) %>%
   summarize(Cases = sum(Cases, na.rm=T)) %>% 
@@ -412,73 +332,25 @@ us_emp_df <- read_excel('data/us_emp.xlsx', skip=11) %>%
 # https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410028701
 # Download Option: Download selected data (for database loading)
 
-# process can unemployment data
-can_emp_df <- read_csv('data/can_emp.csv') %>% 
-  mutate(Date = REF_DATE %>% str_c('-01') %>% as.Date('%Y-%m-%d')) %>% 
-  filter(Date >= '2000-01-01', `Data type` %like% 'Seasonally', Sex=='Both sexes', 
-         `Age group`=='15 years and over', UOM=='Percentage', GEO=='Canada',
-         `Labour force characteristics`=='Unemployment rate', Statistics=='Estimate') %>% 
-  select(Date, Unemp.Rate=VALUE, Region=GEO)
+# process can unemployment data (run once after downloading)
+# can_emp_df <- read_csv('data/can_emp.csv') %>% 
+#   mutate(Date = REF_DATE %>% str_c('-01') %>% as.Date('%Y-%m-%d')) %>% 
+#   filter(Date >= '2000-01-01', `Data type` %like% 'Seasonally', Sex=='Both sexes', 
+#          `Age group`=='15 years and over', UOM=='Percentage', GEO=='Canada',
+#          `Labour force characteristics`=='Unemployment rate', Statistics=='Estimate') %>% 
+#   select(Date, Unemp.Rate=VALUE, Region=GEO)
+# 
+# write_csv(can_emp_df, 'data/can_emp.csv')
 
-write_csv(can_emp_df, 'data/can_emp.csv')
-can_emp_df <- read_csv('data/can_emp.csv')
+can_emp_df <- read_csv('data/can_emp.csv') %>% 
+  mutate(Date = str_c(str_sub(can_emp_df$Date, -4, -1), 
+                      str_sub(can_emp_df$Date, 3, 5), '-',
+                      str_sub(can_emp_df$Date, 1, 2)) %>% as.Date())
 
 emp_dt <- rbind(us_emp_df, can_emp_df) %>% 
   as.data.table()
 
-# source: https://data.oecd.org/unemp/unemployment-rate.htm#indicator-chart
-# emp_dt <- fread('data/OECD_unemp.csv') %>% 
-#   filter(LOCATION %in% c('CAN', 'USA')) %>% 
-#   mutate(Region = if_else(LOCATION=='CAN', 'Canada', 'United States'),
-#          Date = TIME %>% 
-#            str_c('-01') %>% 
-#            as.Date(format='%Y-%m-%d')) %>% 
-#   select(Region, Date, Unemp.Rate = Value) %>% 
-#   as.data.table()
-
 saveRDS(emp_dt, 'data/emp_dt.rds')
-# ====
-
-# Job Losses ====
-jobloss_dates <- seq(as.Date('2020-01-01'), as.Date('2020-05-01'), by='months')
-
-# Manually curated by subtracted employed from previous month, in millions
-# https://www.bls.gov/news.release/empsit.t01.htm
-us_job_losses <- c(0.089, -0.045, 2.987, 22.369)
-
-# https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410028701
-can_job_losses <- c(-0.0345, -0.0303, 1.0107, 1.9938)
-
-job_loss_dt <- data.frame(Date=rep(jobloss_dates, 2),
-                          Job.Loss=c(us_job_losses, can_job_losses),
-                          Region=c(rep('United States', 4), rep('Canada',4))) %>% 
-  as.data.table()
-
-saveRDS(job_loss_dt, 'data/job_loss_dt.rds')
-# ====
-
-# Jobless Claims ====
-us_jobless_dates <- seq(as.Date('2020-01-11'), as.Date('2020-05-02'), by='weeks')
-
-# Initial Unemployment Claims (Seasonally Adjusted) manually curated from 
-# https://oui.doleta.gov/unemploy/wkclaims/report.asp and https://www.dol.gov/ui/data.pdf
-us_jobless_claims <- c(207000, 220000, 212000, 201000, 204000, 215000, 220000, 
-                       217000, 211000, 282000, 3307000, 6867000, 6615000, 5237000, 
-                       4442000, 3846000, 3169000)
-us_jobless_claims <- c(851000, 1057000, 10667000, 20161000, 12329000)
-
-can_jobless_dates <- seq(as.Date('2019-10-01'), as.Date('2020-04-01'), by='months')
-
-# https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410000501
-can_jobless_claims <- c(241420, 245290, 244380, 241840, 241100, 10107000, 1993800)
-  
-jobless_claim_dt <- data.frame(Date=c(us_jobless_dates, can_jobless_dates),
-                               Unemp.Insur.Claim=c(us_jobless_claims, can_jobless_claims),
-                               Region=c(rep('United States', length(us_jobless_claims)),
-                                        rep('Canada', length(can_jobless_claims)))) %>% 
-  as.data.table()
-
-saveRDS(jobless_claim_dt, 'data/jobless_claim_dt.rds')
 # ====
 
 # Stock Market Index ====
@@ -511,6 +383,50 @@ indices_dt <- c('dow_jones_global_dow', 'dow_jones', 's&p_500', 'nasdaq_100', 's
 saveRDS(indices_dt, 'data/indices_dt.rds')
 # ====
 
+# ARCHIVED ----
+
+# # Job Losses ====
+# jobloss_dates <- seq(as.Date('2020-01-01'), as.Date('2020-05-01'), by='months')
+# 
+# # Manually curated by subtracted employed from previous month, in millions
+# # https://www.bls.gov/news.release/empsit.t01.htm
+# us_job_losses <- c(0.089, -0.045, 2.987, 22.369)
+# 
+# # https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410028701
+# can_job_losses <- c(-0.0345, -0.0303, 1.0107, 1.9938)
+# 
+# job_loss_dt <- data.frame(Date=rep(jobloss_dates, 2),
+#                           Job.Loss=c(us_job_losses, can_job_losses),
+#                           Region=c(rep('United States', 4), rep('Canada',4))) %>% 
+#   as.data.table()
+# 
+# saveRDS(job_loss_dt, 'data/job_loss_dt.rds')
+# ====
+
+# Jobless Claims ====
+# us_jobless_dates <- seq(as.Date('2020-01-11'), as.Date('2020-05-02'), by='weeks')
+# 
+# # Initial Unemployment Claims (Seasonally Adjusted) manually curated from 
+# # https://oui.doleta.gov/unemploy/wkclaims/report.asp and https://www.dol.gov/ui/data.pdf
+# us_jobless_claims <- c(207000, 220000, 212000, 201000, 204000, 215000, 220000, 
+#                        217000, 211000, 282000, 3307000, 6867000, 6615000, 5237000, 
+#                        4442000, 3846000, 3169000)
+# us_jobless_claims <- c(851000, 1057000, 10667000, 20161000, 12329000)
+# 
+# can_jobless_dates <- seq(as.Date('2019-10-01'), as.Date('2020-04-01'), by='months')
+# 
+# # https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410000501
+# can_jobless_claims <- c(241420, 245290, 244380, 241840, 241100, 10107000, 1993800)
+#   
+# jobless_claim_dt <- data.frame(Date=c(us_jobless_dates, can_jobless_dates),
+#                                Unemp.Insur.Claim=c(us_jobless_claims, can_jobless_claims),
+#                                Region=c(rep('United States', length(us_jobless_claims)),
+#                                         rep('Canada', length(can_jobless_claims)))) %>% 
+#   as.data.table()
+# 
+# saveRDS(jobless_claim_dt, 'data/jobless_claim_dt.rds')
+# ====
+
 # Commodities ====
 # commodities <- c('gold-price', 'live-cattle-price', 'lumber-price', 'oil-price', 'rice-price')
 # commodities_df <- commodities %>%
@@ -531,3 +447,4 @@ saveRDS(indices_dt, 'data/indices_dt.rds')
 # 
 # saveRDS(commodities_df, 'data/commodities_df.rds')
 # ====
+# ----
