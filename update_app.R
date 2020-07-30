@@ -1,8 +1,19 @@
+# LOAD PACKAGES ====
+.libPaths('C:/Users/Steph/Documents/R/win-library/3.6')
+
 library(tidyverse)
 library(data.table)
 library(reticulate)
 library(readxl)
+library(rsconnect)
+library(shiny)
+
 source('utils.R')
+
+setAccountInfo(name='stephenlee94', 
+               token='EFA8A5B77C7EAC26C36446BCBE4241FA', 
+               secret='nojInZvUim7dbHMIM3uGfiOL5riMClKSoqBHAUAQ')
+# ====
 
 # MAPS ----
 # spatial dataframe of the world
@@ -36,6 +47,8 @@ if(!file.exists('data/world_map.rds') | !file.exists('data/country_centroids.rds
   saveRDS(centroids, 'data/country_centroids.rds')
 }
 
+centroids <- readRDS('data/country_centroids.rds')
+
 # https://eric.clst.org/tech/usgeojson/
 if(!file.exists('data/usa_map.rds') | !file.exists('data/usa_centroids.rds')){
   usa <- rgdal::readOGR('data/USA_20m.json')
@@ -49,6 +62,8 @@ if(!file.exists('data/usa_map.rds') | !file.exists('data/usa_centroids.rds')){
   saveRDS(usa_simple, 'data/usa_map.rds')
   saveRDS(usa_centroids, 'data/usa_centroids.rds')
 }
+
+usa_centroids <- readRDS('data/usa_centroids.rds')
 
 # https://thomson.carto.com/tables/canada_provinces/public/map
 if(!file.exists('data/canada_map.rds')){
@@ -165,18 +180,21 @@ saveRDS(cumulative_df %>% as.data.table(), 'data/cumulative_dt.rds')
 # COVID SUMMARY DATA BY REGION ----
 
 # population by country in 2020
-country_pop_url <- 'https://www.worldometers.info/world-population/population-by-country/'
-
-country_pop <- country_pop_url %>%
-  read_html() %>%
-  html_nodes(xpath='//*[@id="example2"]') %>%
-  html_table()
-
-country_pop_df <- as.data.frame(country_pop[[1]]) %>% 
-  select(Country.Region = `Country (or dependency)`, Population = `Population (2020)`) %>% 
-  mutate(Population = Population %>% 
-           str_replace_all(',', '') %>% 
-           as.integer())
+# country_pop_url <- 'https://www.worldometers.info/world-population/population-by-country/'
+# 
+# country_pop <- country_pop_url %>%
+#   read_html() %>%
+#   html_nodes(xpath='//*[@id="example2"]') %>%
+#   html_table()
+# 
+# country_pop_df <- as.data.frame(country_pop[[1]]) %>%
+#   select(Country.Region = `Country (or dependency)`, Population = `Population (2020)`) %>%
+#   mutate(Population = Population %>%
+#            str_replace_all(',', '') %>%
+#            as.integer())
+# 
+# saveRDS(country_pop_df, 'data/country_pop_df.rds')
+country_pop_df <- readRDS('data/country_pop_df.rds')
 
 cases_by_country_df <- confirmed_df %>% 
   group_by(Country.Region, Date) %>%
@@ -206,18 +224,21 @@ saveRDS(covid_summary_df %>% as.data.table(), 'data/covid_summary_dt.rds')
 # ----
 
 # population by state in 2019
-state_pop_url <- 'https://en.wikipedia.org/wiki/List_of_states_and_territories_of_the_United_States_by_population'
-
-state_pop <- state_pop_url %>%
-  read_html() %>%
-  html_nodes(xpath='//*[@id="mw-content-text"]/div/table[1]') %>%
-  html_table(fill=T)
-
-state_pop_df <- data.frame(state_pop[[1]])[-1,] %>% 
-  select(Province.State = State, Population = Census.population) %>% 
-  mutate(Population = Population %>% 
-           str_replace_all(',', '') %>% 
-           as.integer())
+# state_pop_url <- 'https://en.wikipedia.org/wiki/List_of_states_and_territories_of_the_United_States_by_population'
+# 
+# state_pop <- state_pop_url %>%
+#   read_html() %>%
+#   html_nodes(xpath='//*[@id="mw-content-text"]/div/table[1]') %>%
+#   html_table(fill=T)
+# 
+# state_pop_df <- data.frame(state_pop[[1]])[-1,] %>%
+#   select(Province.State = State, Population = Census.population) %>%
+#   mutate(Population = Population %>%
+#            str_replace_all(',', '') %>%
+#            as.integer())
+# 
+# saveRDS(state_pop_df, 'data/state_pop_df.rds')
+state_pop_df <- readRDS('data/state_pop_df.rds')
 
 cases_by_state_df <- confirmed_df %>% 
   filter(Country.Region=='United States') %>% 
@@ -243,18 +264,21 @@ summary_by_state_df <- cases_by_state_df %>%
          Recovered, Mortality.Rate, Recovery.Rate, Map.View)
 
 # population by province in 2019
-province_url <- 'https://worldpopulationreview.com/canadian-provinces/'
-
-province_pop <- url %>%
-  read_html() %>%
-  html_nodes(xpath='//*[@id="recentPopulationEstimate"]/div[1]/div/div/div/div/div/table') %>%
-  html_table(fill=T)
-
-province_pop_df <- province_pop[[1]] %>% 
-  select(Province.State = Name, Population = `2019 Population`) %>% 
-  mutate(Population = Population %>% 
-           str_replace_all(',', '') %>% 
-           as.integer())
+# province_url <- 'https://worldpopulationreview.com/canadian-provinces/'
+# 
+# province_pop <- url %>%
+#   read_html() %>%
+#   html_nodes(xpath='//*[@id="recentPopulationEstimate"]/div[1]/div/div/div/div/div/table') %>%
+#   html_table(fill=T)
+# 
+# province_pop_df <- province_pop[[1]] %>%
+#   select(Province.State = Name, Population = `2019 Population`) %>%
+#   mutate(Population = Population %>%
+#            str_replace_all(',', '') %>%
+#            as.integer())
+# 
+# saveRDS(province_pop_df, 'data/province_pop_df.rds')
+province_pop_df <- readRDS('data/province_pop_df.rds')
 
 cases_by_province_df <- confirmed_df %>% 
   filter(Country.Region=='Canada') %>% 
@@ -281,8 +305,8 @@ summary_by_province_df <- cases_by_province_df %>%
 
 covid_stats_dt <- rbind(covid_summary_df,
                         summary_by_state_df %>% mutate(Map.View='United States'),
-                        summary_by_province_df %>% mutate(Map.View='Canada')) %>% 
-  mutate(Cases.Millions=Cases/1e6) %>% 
+                        summary_by_province_df %>% mutate(Map.View='Canada')) %>%
+  mutate(Cases.Millions=Cases/1e6) %>%
   as.data.table()
 
 saveRDS(covid_stats_dt, 'data/covid_stats_dt.rds')
@@ -307,13 +331,14 @@ can_gdp_df <- read_csv('data/CAN_GDP.csv') %>%
 us_gdp_df <- read_csv('data/US_GDP.csv') %>% 
   mutate(Date = Date %>% 
            str_replace('^([:digit:]{4})(Q[:digit:])$', '\\1 \\2') %>% 
-           as.yearqtr() %>% as.Date(),
+           zoo::as.yearqtr() %>% zoo::as.Date(),
          GDP = GDP/1000,
          Region = 'United States')
 
 gdp_dt <- rbind(can_gdp_df[can_gdp_df$Date>='2000-01-01',], us_gdp_df) %>% as.data.table()
 
 saveRDS(gdp_dt, 'data/gdp_dt.rds')
+gdp_dt <- readRDS('data/gdp_dt.rds')
 # ====
 
 # Employment ====
@@ -343,9 +368,9 @@ us_emp_df <- read_excel('data/us_emp.xlsx', skip=11) %>%
 # write_csv(can_emp_df, 'data/can_emp.csv')
 
 can_emp_df <- read_csv('data/can_emp.csv') %>% 
-  mutate(Date = str_c(str_sub(can_emp_df$Date, -4, -1), 
-                      str_sub(can_emp_df$Date, 3, 5), '-',
-                      str_sub(can_emp_df$Date, 1, 2)) %>% as.Date())
+  mutate(Date = str_c(str_sub(Date, -4, -1), 
+                      str_sub(Date, 3, 5), '-',
+                      str_sub(Date, 1, 2)) %>% as.Date())
 
 emp_dt <- rbind(us_emp_df, can_emp_df) %>% 
   as.data.table()
@@ -382,6 +407,9 @@ indices_dt <- c('dow_jones_global_dow', 'dow_jones', 's&p_500', 'nasdaq_100', 's
 
 saveRDS(indices_dt, 'data/indices_dt.rds')
 # ====
+
+# update Shiny App
+deployApp(appFiles=c('app.R', 'data/', 'www/styles.css'), launch.browser=F)
 
 # ARCHIVED ----
 

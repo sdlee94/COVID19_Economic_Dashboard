@@ -7,3 +7,4 @@ archived/*
 data/*
 debug.log
 geckodriver.log
+deploy.R
