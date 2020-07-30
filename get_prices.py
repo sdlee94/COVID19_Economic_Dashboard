@@ -29,7 +29,8 @@ def get_prices(query, query_class, start_date, end_date):
     browser.get(query_url)
 
     search_form = browser.find_element_by_id('historic-price-list')
-    test = browser.find_element_by_css_selector('table.table.instruments')
+    test = browser.find_element_by_xpath('//*[@id="historic-price-list"]/div/div[2]/table')
+    #test = browser.find_element_by_css_selector('table.table.instruments')
     soup = BeautifulSoup(test.get_attribute("outerHTML"), 'lxml')
 
     dates = []
