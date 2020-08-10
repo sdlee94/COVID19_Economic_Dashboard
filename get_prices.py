@@ -1,5 +1,6 @@
 import argparse, datetime
 import pandas as pd
+from time import sleep
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
 from bs4 import BeautifulSoup
@@ -31,7 +32,7 @@ def get_prices(query, query_class, start_date, end_date):
     #search_form = browser.find_element_by_id('historic-price-list')
 
     # allow sufficient time for browser to load
-    time.sleep(10)
+    sleep(10)
     test = browser.find_element_by_xpath('//*[@id="historic-price-list"]/div/div[2]/table')
 
     #test = browser.find_element_by_xpath('//html/body/main/div/div/div[3]/div/div[10]/div/div[2]/table')
@@ -46,6 +47,7 @@ def get_prices(query, query_class, start_date, end_date):
         close_prices.append(tds[1].text.strip())
 
     browser.close()
+    browser.quit()
 
     price_df = pd.DataFrame({
         'Date':dates, 'Close':close_prices,
